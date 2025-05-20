@@ -90,9 +90,9 @@ class _ProfilePageState extends State<ProfilePage>
         }
 
         // Load game stats
-        _gameHours = prefs.getDouble(_gameHoursKey) ?? 42.5;
-        _gamesPlayed = prefs.getInt(_gamesPlayedKey) ?? 34;
-        _gamesWon = prefs.getInt(_gamesWonKey) ?? 28;
+        _gameHours = prefs.getDouble(_gameHoursKey) ?? 0;
+        _gamesPlayed = prefs.getInt(_gamesPlayedKey) ?? 0;
+        _gamesWon = prefs.getInt(_gamesWonKey) ?? 0;
       });
     } catch (e) {
       if (mounted) {

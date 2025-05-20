@@ -3,6 +3,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'animated_background.dart'; // Import the new background widget
 import 'profile.dart';
+import 'space_blaster.dart';
 
 class AnimatedHomePage extends StatefulWidget {
   const AnimatedHomePage({super.key});
@@ -301,7 +302,10 @@ class _AnimatedHomePageState extends State<AnimatedHomePage>
             MaterialPageRoute(builder: (context) => ProfilePage()),
           );
         } else if (text == 'NEW GAME') {
-          // Start new game
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => SpaceBlasterApp()),
+          );
         } else if (text == 'CONTINUE') {
           // Continue saved game
         }
