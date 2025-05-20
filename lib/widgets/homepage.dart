@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:simple_icons/simple_icons.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class AnimatedHomePage extends StatefulWidget {
   @override
@@ -31,18 +33,27 @@ class _AnimatedHomePageState extends State<AnimatedHomePage> with SingleTickerPr
     super.dispose();
   }
 
+  // Helper function to launch URLs
+  Future<void> _launchUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      // Handle error
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not open $url')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Pixel art background
-          Image.asset(
-            'assets/images/background.png',
-            fit: BoxFit.cover,
-          ),
-          // Overlay with content
+          // Pixel art background (uncomment and set your asset if you have one)
+          // Image.asset('assets/images/background.png', fit: BoxFit.cover),
           Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -73,7 +84,6 @@ class _AnimatedHomePageState extends State<AnimatedHomePage> with SingleTickerPr
                   ),
                 ),
                 SizedBox(height: 40),
-                // Pixel art style button
                 GestureDetector(
                   onTap: () {
                     // Navigate to game screen
@@ -111,6 +121,44 @@ class _AnimatedHomePageState extends State<AnimatedHomePage> with SingleTickerPr
                       ),
                     ),
                   ),
+                ),
+              ],
+            ),
+          ),
+          // Footer with "Made by" and social icons
+          Positioned(
+            bottom: 24,
+            left: 0,
+            right: 0,
+            child: Column(
+              children: [
+                Text(
+                  'Made by Akshat Singh',
+                  style: TextStyle(
+                    fontFamily: 'PixelFont',
+                    fontSize: 14,
+                    color: Colors.white70,
+                    letterSpacing: 2,
+                    shadows: [
+                      Shadow(
+                        blurRadius: 2.0,
+                        color: Colors.black,
+                        offset: Offset(1, 1),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    IconButton(
+                      icon: Icon(SimpleIcons.github, color: Colors.white, size: 28),
+                      tooltip: 'GitHub',
+                      onPressed: () => _launchUrl('https://github.com/akshat2474'),
+                    ),
+                    SizedBox(width: 16),
+                  ],
                 ),
               ],
             ),

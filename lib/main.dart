@@ -15,7 +15,7 @@ class RetroDashApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
-        fontFamily: 'RetroFont', // Optional: Add your retro font in pubspec.yaml
+        fontFamily: 'RetroFont', 
         primarySwatch: Colors.amber,
       ),
       home: AnimatedHomePage(),
