@@ -258,27 +258,28 @@ class _AnimatedHomePageState extends State<AnimatedHomePage>
                 curve: Curves.easeOut,
                 child: SizedBox(
                   height: _showOptions ? null : 0,
-                  child: _showOptions
-                      ? Column(
-                          children: [
-                            const SizedBox(height: 20),
-                            _buildOptionButton(
-                              'NEW GAME',
-                              Colors.greenAccent,
-                            ),
-                            const SizedBox(height: 10),
-                            _buildOptionButton(
-                              'CONTINUE',
-                              Colors.amberAccent,
-                            ),
-                            const SizedBox(height: 10),
-                            _buildOptionButton(
-                              'PROFILE',
-                              Colors.blueAccent,
-                            ),
-                          ],
-                        )
-                      : null,
+                  child:
+                      _showOptions
+                          ? Column(
+                            children: [
+                              const SizedBox(height: 20),
+                              _buildOptionButton(
+                                '  PLAY :)  ',
+                                Colors.greenAccent,
+                              ),
+                              const SizedBox(height: 10),
+                              _buildOptionButton(
+                                'LEADERBOARD',
+                                Colors.amberAccent,
+                              ),
+                              const SizedBox(height: 10),
+                              _buildOptionButton(
+                                '  PROFILE  ',
+                                Colors.blueAccent,
+                              ),
+                            ],
+                          )
+                          : null,
                 ),
               ),
 
@@ -296,17 +297,17 @@ class _AnimatedHomePageState extends State<AnimatedHomePage>
     return GestureDetector(
       onTap: () {
         // Handle option button taps
-        if (text == 'PROFILE') {
+        if (text == '  PROFILE  ') {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => ProfilePage()),
           );
-        } else if (text == 'NEW GAME') {
+        } else if (text == '  PLAY :)  ') {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => SpaceBlasterApp()),
           );
-        } else if (text == 'CONTINUE') {
+        } else if (text == 'LEADERBOARD') {
           // Continue saved game
         }
       },
@@ -339,7 +340,7 @@ class _AnimatedHomePageState extends State<AnimatedHomePage>
 
   Widget _buildCreditsSection() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
       decoration: BoxDecoration(
         color: Colors.black.withOpacity(0.7),

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'dart:math';
 import 'dart:async';
 import 'animated_background.dart';
+import 'audio_player.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -106,8 +107,26 @@ class StartScreen extends StatelessWidget {
               ),
             ),
             child: const Text(
-              'START GAME',
+              'AUTO FIRE',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+          ),
+          const SizedBox(height: 30,),
+          ElevatedButton(
+            onPressed: onStart,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.cyanAccent.withOpacity(0.2),
+              foregroundColor: Colors.white,
+              elevation: 8,
+              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(30),
+                side: const BorderSide(color: Colors.cyanAccent, width: 2),
+              ),
+            ),
+            child: const Text(
+              'HARD MODE',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -138,10 +157,41 @@ class _GameplayScreenState extends State<GameplayScreen> {
   
   double _playerX = 0.5; // Position as percentage of screen width
 
+  final GameAudio _gameAudio = GameAudio();
+  bool _audioInitialized = false;
+
   @override
   void initState() {
     super.initState();
-    _startGame();
+    _initializeGame();
+  }
+
+  Future<void> _initializeGame() async {
+    try {
+      debugPrint('Initializing game resources...');
+      
+      // Try to initialize audio
+      debugPrint('Attempting to initialize audio...');
+      await _gameAudio.initialize();
+      
+      setState(() {
+        _audioInitialized = true;
+      });
+      
+      debugPrint('Audio initialization complete');
+    } catch (e) {
+      debugPrint('Error during audio initialization: $e');
+      // Continue game without audio
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Sound effects could not be initialized'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } finally {
+      // Start game regardless of audio initialization status
+      _startGameLoop();
+    }
   }
 
   @override
@@ -156,7 +206,7 @@ class _GameplayScreenState extends State<GameplayScreen> {
     );
   }
 
-  void _startGame() {
+  void _startGameLoop() {
     // Game loop
     _gameTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
       _updateGame();
@@ -180,8 +230,8 @@ class _GameplayScreenState extends State<GameplayScreen> {
     final enemy = Enemy(
       x: _random.nextDouble() * size.width,
       y: -50,
-      width: 40 + _random.nextDouble(),
-      height: 40 + _random.nextDouble(),
+      width: 40 + _random.nextDouble() * 10, // More variety
+      height: 40 + _random.nextDouble() * 10,
       speed: 1 + _random.nextDouble() * 3,
       health: 1 + _random.nextInt(3),
     );
@@ -201,6 +251,11 @@ class _GameplayScreenState extends State<GameplayScreen> {
       height: 20,
       speed: 8,
     );
+
+    // Only play sound if audio is initialized
+    if (_audioInitialized) {
+      _gameAudio.playBlastSound();
+    }
     
     setState(() {
       _projectiles.add(projectile);
@@ -239,9 +294,14 @@ class _GameplayScreenState extends State<GameplayScreen> {
         if (_checkCollision(_player, _enemies[i])) {
           _gameOver = true;
           _addExplosion(_player.x, _player.y);
+          
+          // Play explosion sound if audio is initialized
+          if (_audioInitialized) {
+            _gameAudio.playExplosionSound();
+          }
+          
           _endGame();
           break;
-          
         }
         
         // Check collision with projectiles
@@ -252,6 +312,12 @@ class _GameplayScreenState extends State<GameplayScreen> {
             
             if (_enemies[i].health <= 0) {
               _addExplosion(_enemies[i].x, _enemies[i].y);
+              
+              // Play explosion sound if audio is initialized
+              if (_audioInitialized) {
+                _gameAudio.playExplosionSound();
+              }
+              
               score += 10;
               _enemies.removeAt(i);
             }
@@ -347,6 +413,7 @@ class _GameplayScreenState extends State<GameplayScreen> {
     _gameTimer?.cancel();
     _enemySpawnTimer?.cancel();
     _projectileTimer?.cancel();
+    _gameAudio.dispose();
     super.dispose();
   }
 

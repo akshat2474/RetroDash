@@ -8,7 +8,7 @@ import 'homepage.dart';
 import 'animated_background.dart'; // Import the AnimatedBackground widget
 
 class ProfilePage extends StatefulWidget {
-  const ProfilePage({Key? key}) : super(key: key);
+  const ProfilePage({super.key});
 
   @override
   _ProfilePageState createState() => _ProfilePageState();
