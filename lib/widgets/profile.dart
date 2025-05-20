@@ -250,30 +250,15 @@ class _ProfilePageState extends State<ProfilePage>
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 const SizedBox(height: 20),
-
-                // Header with back button
                 _buildHeader(),
-
                 const SizedBox(height: 30),
-
-                // Profile image
                 _buildProfileImage(),
-
                 const SizedBox(height: 30),
-
-                // Profile form
                 _buildProfileForm(),
-
                 const SizedBox(height: 30),
-
-                // Game stats
                 _buildGameStats(),
-
                 const SizedBox(height: 40),
-
-                // Save button
                 _buildSaveButton(),
-
                 const SizedBox(height: 40),
               ],
             ),

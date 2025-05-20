@@ -2,34 +2,15 @@ import 'package:flutter/material.dart';
 import 'dart:math';
 
 class AnimatedBackground extends StatefulWidget {
-  /// Child widget to display on top of the animated background
   final Widget child;
-  
-  /// Number of particles to display
   final int particleCount;
-  
-  /// Background color
   final Color backgroundColor;
-  
-  /// Grid color
   final Color gridColor;
-  
-  /// Grid line width
   final double gridLineWidth;
-  
-  /// Grid cell count horizontally
   final int horizontalGridCount;
-  
-  /// Grid cell count vertically
   final int verticalGridCount;
-  
-  /// Whether to show the grid
   final bool showGrid;
-  
-  /// Whether to show particles
   final bool showParticles;
-  
-  /// Colors for particles (randomly picked)
   final List<Color> particleColors;
 
   const AnimatedBackground({
