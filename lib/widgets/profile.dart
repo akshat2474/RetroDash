@@ -1,11 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:math';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'homepage.dart';
+import 'animated_background.dart'; // Import the AnimatedBackground widget
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({Key? key}) : super(key: key);
@@ -40,10 +40,6 @@ class _ProfilePageState extends State<ProfilePage>
   bool _isEditing = false;
   bool _isSaving = false;
 
-  // Particles for background effect
-  final List<Particle> _particles = [];
-  final Random _random = Random();
-
   // SharedPreferences keys
   static const String _nameKey = 'profile_name';
   static const String _usernameKey = 'profile_username';
@@ -72,12 +68,6 @@ class _ProfilePageState extends State<ProfilePage>
 
     // Load saved profile data
     _loadProfileData();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _generateParticles();
   }
 
   Future<void> _loadProfileData() async {
@@ -115,36 +105,6 @@ class _ProfilePageState extends State<ProfilePage>
         );
       }
     }
-  }
-
-  void _generateParticles() {
-    _particles.clear();
-
-    final double screenWidth = MediaQuery.of(context).size.width;
-    final double screenHeight = MediaQuery.of(context).size.height;
-
-    for (int i = 0; i < 40; i++) {
-      _particles.add(
-        Particle(
-          x: _random.nextDouble() * screenWidth,
-          y: _random.nextDouble() * screenHeight,
-          size: _random.nextDouble() * 3 + 1,
-          speed: _random.nextDouble() * 20 + 5,
-          opacity: _random.nextDouble() * 0.6 + 0.2,
-          color: _getRandomColor(),
-        ),
-      );
-    }
-  }
-
-  Color _getRandomColor() {
-    final colors = [
-      Colors.cyanAccent,
-      Colors.pinkAccent,
-      Colors.purpleAccent,
-      Colors.blueAccent,
-    ];
-    return colors[_random.nextInt(colors.length)];
   }
 
   @override
@@ -273,78 +233,53 @@ class _ProfilePageState extends State<ProfilePage>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return AnimatedBackground(
       backgroundColor: const Color(0xFF0A0E17),
-      body: Stack(
-        children: [
-          // Background effects
-          _buildBackgroundEffects(),
+      particleColors: const [
+        Colors.cyanAccent,
+        Colors.pinkAccent,
+        Colors.purpleAccent,
+        Colors.blueAccent,
+      ],
+      child: SafeArea(
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const SizedBox(height: 20),
 
-          // Main content
-          SafeArea(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    const SizedBox(height: 20),
+                // Header with back button
+                _buildHeader(),
 
-                    // Header with back button
-                    _buildHeader(),
+                const SizedBox(height: 30),
 
-                    const SizedBox(height: 30),
+                // Profile image
+                _buildProfileImage(),
 
-                    // Profile image
-                    _buildProfileImage(),
+                const SizedBox(height: 30),
 
-                    const SizedBox(height: 30),
+                // Profile form
+                _buildProfileForm(),
 
-                    // Profile form
-                    _buildProfileForm(),
+                const SizedBox(height: 30),
 
-                    const SizedBox(height: 30),
+                // Game stats
+                _buildGameStats(),
 
-                    // Game stats
-                    _buildGameStats(),
+                const SizedBox(height: 40),
 
-                    const SizedBox(height: 40),
+                // Save button
+                _buildSaveButton(),
 
-                    // Save button
-                    _buildSaveButton(),
-
-                    const SizedBox(height: 40),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBackgroundEffects() {
-    return Stack(
-      children: [
-        // Background gradient
-        Container(
-          decoration: BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment.center,
-              radius: 1.2,
-              colors: [const Color(0xFF1A1F35), const Color(0xFF0A0E17)],
+                const SizedBox(height: 40),
+              ],
             ),
           ),
         ),
-
-        // Animated particles
-        CustomPaint(painter: ParticlePainter(_particles), size: Size.infinite),
-
-        // Grid lines
-        CustomPaint(painter: GridPainter(), size: Size.infinite),
-      ],
+      ),
     );
   }
 
@@ -841,77 +776,4 @@ class _ProfilePageState extends State<ProfilePage>
       ),
     );
   }
-}
-
-// Particle class for background effects
-class Particle {
-  double x;
-  double y;
-  double size;
-  double speed;
-  double opacity;
-  Color color;
-
-  Particle({
-    required this.x,
-    required this.y,
-    required this.size,
-    required this.speed,
-    required this.opacity,
-    required this.color,
-  });
-}
-
-// Custom painter for rendering particles
-class ParticlePainter extends CustomPainter {
-  final List<Particle> particles;
-
-  ParticlePainter(this.particles);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    for (var particle in particles) {
-      final paint =
-          Paint()
-            ..color = particle.color.withOpacity(particle.opacity)
-            ..style = PaintingStyle.fill;
-
-      canvas.drawCircle(Offset(particle.x, particle.y), particle.size, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(ParticlePainter oldDelegate) => true;
-}
-
-// Custom painter for grid lines
-class GridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint =
-        Paint()
-          ..color = Colors.cyanAccent.withOpacity(0.1)
-          ..strokeWidth = 1.0;
-
-    // Draw horizontal lines
-    final horizontalLineCount = 20;
-    final verticalLineCount = 20;
-
-    // Horizontal lines
-    final double horizontalSpacing = size.height / horizontalLineCount;
-    for (int i = 0; i <= horizontalLineCount; i++) {
-      final double y = i * horizontalSpacing;
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-
-    // Vertical lines
-    final double verticalSpacing = size.width / verticalLineCount;
-    for (int i = 0; i <= verticalLineCount; i++) {
-      final double x = i * verticalSpacing;
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
