@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
+import 'homepage.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({Key? key}) : super(key: key);
@@ -14,8 +15,7 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage>
-  
-  with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin {
   // Controllers for text fields
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
@@ -23,6 +23,7 @@ class _ProfilePageState extends State<ProfilePage>
   // Image picker
   final ImagePicker _picker = ImagePicker();
   File? _profileImage;
+  String? _savedImagePath;
 
   // Animations
   late AnimationController _animationController;
@@ -30,7 +31,9 @@ class _ProfilePageState extends State<ProfilePage>
   late Animation<double> _rotateAnimation;
 
   // Game stats
-  final double _gameHours = 42.5; // Example value, replace with actual data
+  double _gameHours = 42.5; // Example value, replace with actual data
+  int _gamesPlayed = 34;
+  int _gamesWon = 28;
 
   // Form validation
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
@@ -41,35 +44,34 @@ class _ProfilePageState extends State<ProfilePage>
   final List<Particle> _particles = [];
   final Random _random = Random();
 
+  // SharedPreferences keys
+  static const String _nameKey = 'profile_name';
+  static const String _usernameKey = 'profile_username';
+  static const String _imagePathKey = 'profile_image_path';
+  static const String _gameHoursKey = 'game_hours';
+  static const String _gamesPlayedKey = 'games_played';
+  static const String _gamesWonKey = 'games_won';
+
   @override
   void initState() {
     super.initState();
-    
+
     // Initialize animation controller
     _animationController = AnimationController(
       duration: const Duration(seconds: 3),
       vsync: this,
     )..repeat(reverse: true);
 
-    _pulseAnimation = Tween<double>(
-      begin: 0.95,
-      end: 1.05,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeInOut,
-    ));
+    _pulseAnimation = Tween<double>(begin: 0.95, end: 1.05).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
 
-    _rotateAnimation = Tween<double>(
-      begin: -0.05,
-      end: 0.05,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeInOut,
-    ));
+    _rotateAnimation = Tween<double>(begin: -0.05, end: 0.05).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
 
-    // Load example profile data
-    _nameController.text = "Pixel Warrior";
-    _usernameController.text = "pixel_dash_master";
+    // Load saved profile data
+    _loadProfileData();
   }
 
   @override
@@ -78,21 +80,60 @@ class _ProfilePageState extends State<ProfilePage>
     _generateParticles();
   }
 
+  Future<void> _loadProfileData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      setState(() {
+        // Load text fields
+        _nameController.text = prefs.getString(_nameKey) ?? "Pixel Warrior";
+        _usernameController.text =
+            prefs.getString(_usernameKey) ?? "pixel_dash_master";
+
+        // Load profile image path
+        _savedImagePath = prefs.getString(_imagePathKey);
+        if (_savedImagePath != null) {
+          final file = File(_savedImagePath!);
+          if (file.existsSync()) {
+            _profileImage = file;
+          }
+        }
+
+        // Load game stats
+        _gameHours = prefs.getDouble(_gameHoursKey) ?? 42.5;
+        _gamesPlayed = prefs.getInt(_gamesPlayedKey) ?? 34;
+        _gamesWon = prefs.getInt(_gamesWonKey) ?? 28;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading profile data: $e'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   void _generateParticles() {
     _particles.clear();
-    
+
     final double screenWidth = MediaQuery.of(context).size.width;
     final double screenHeight = MediaQuery.of(context).size.height;
-    
+
     for (int i = 0; i < 40; i++) {
-      _particles.add(Particle(
-        x: _random.nextDouble() * screenWidth,
-        y: _random.nextDouble() * screenHeight,
-        size: _random.nextDouble() * 3 + 1,
-        speed: _random.nextDouble() * 20 + 5,
-        opacity: _random.nextDouble() * 0.6 + 0.2,
-        color: _getRandomColor(),
-      ));
+      _particles.add(
+        Particle(
+          x: _random.nextDouble() * screenWidth,
+          y: _random.nextDouble() * screenHeight,
+          size: _random.nextDouble() * 3 + 1,
+          speed: _random.nextDouble() * 20 + 5,
+          opacity: _random.nextDouble() * 0.6 + 0.2,
+          color: _getRandomColor(),
+        ),
+      );
     }
   }
 
@@ -140,28 +181,92 @@ class _ProfilePageState extends State<ProfilePage>
     }
   }
 
+  Future<String?> _saveProfileImage() async {
+    if (_profileImage == null) return _savedImagePath;
+
+    try {
+      // Get the app's document directory
+      final appDir = await getApplicationDocumentsDirectory();
+      final fileName = 'profile_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final savedImagePath = path.join(appDir.path, fileName);
+
+      // Copy the image to app documents directory for persistence
+      final File newImage = await _profileImage!.copy(savedImagePath);
+
+      // Delete the old image if it exists and it's not the same as the new one
+      if (_savedImagePath != null && _savedImagePath != savedImagePath) {
+        final oldFile = File(_savedImagePath!);
+        if (await oldFile.exists()) {
+          await oldFile.delete();
+        }
+      }
+
+      return savedImagePath;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error saving profile image: $e'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return null;
+    }
+  }
+
   Future<void> _saveProfile() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
         _isSaving = true;
       });
 
-      // Simulate saving data with a delay
-      await Future.delayed(const Duration(seconds: 1));
+      try {
+        // Save profile image
+        final imagePath = await _saveProfileImage();
 
-      setState(() {
-        _isSaving = false;
-        _isEditing = false;
-      });
+        // Get SharedPreferences instance
+        final prefs = await SharedPreferences.getInstance();
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profile updated successfully!'),
-            backgroundColor: Colors.greenAccent,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        // Save profile data
+        await prefs.setString(_nameKey, _nameController.text);
+        await prefs.setString(_usernameKey, _usernameController.text);
+
+        if (imagePath != null) {
+          await prefs.setString(_imagePathKey, imagePath);
+          _savedImagePath = imagePath;
+        }
+
+        // Save game stats (in a real app, these would be updated elsewhere)
+        await prefs.setDouble(_gameHoursKey, _gameHours);
+        await prefs.setInt(_gamesPlayedKey, _gamesPlayed);
+        await prefs.setInt(_gamesWonKey, _gamesWon);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Profile updated successfully!'),
+              backgroundColor: Colors.greenAccent,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error saving profile: $e'),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      } finally {
+        setState(() {
+          _isSaving = false;
+          _isEditing = false;
+        });
       }
     }
   }
@@ -174,7 +279,7 @@ class _ProfilePageState extends State<ProfilePage>
         children: [
           // Background effects
           _buildBackgroundEffects(),
-          
+
           // Main content
           SafeArea(
             child: SingleChildScrollView(
@@ -185,30 +290,30 @@ class _ProfilePageState extends State<ProfilePage>
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     const SizedBox(height: 20),
-                    
+
                     // Header with back button
                     _buildHeader(),
-                    
+
                     const SizedBox(height: 30),
-                    
+
                     // Profile image
                     _buildProfileImage(),
-                    
+
                     const SizedBox(height: 30),
-                    
+
                     // Profile form
                     _buildProfileForm(),
-                    
+
                     const SizedBox(height: 30),
-                    
+
                     // Game stats
                     _buildGameStats(),
-                    
+
                     const SizedBox(height: 40),
-                    
+
                     // Save button
                     _buildSaveButton(),
-                    
+
                     const SizedBox(height: 40),
                   ],
                 ),
@@ -229,25 +334,16 @@ class _ProfilePageState extends State<ProfilePage>
             gradient: RadialGradient(
               center: Alignment.center,
               radius: 1.2,
-              colors: [
-                const Color(0xFF1A1F35),
-                const Color(0xFF0A0E17),
-              ],
+              colors: [const Color(0xFF1A1F35), const Color(0xFF0A0E17)],
             ),
           ),
         ),
-        
+
         // Animated particles
-        CustomPaint(
-          painter: ParticlePainter(_particles),
-          size: Size.infinite,
-        ),
-        
+        CustomPaint(painter: ParticlePainter(_particles), size: Size.infinite),
+
         // Grid lines
-        CustomPaint(
-          painter: GridPainter(),
-          size: Size.infinite,
-        ),
+        CustomPaint(painter: GridPainter(), size: Size.infinite),
       ],
     );
   }
@@ -283,7 +379,7 @@ class _ProfilePageState extends State<ProfilePage>
             ),
           ),
         ),
-        
+
         // Title
         ShaderMask(
           shaderCallback: (Rect bounds) {
@@ -311,11 +407,14 @@ class _ProfilePageState extends State<ProfilePage>
             ),
           ),
         ),
-        
+
         // Settings button
         InkWell(
           onTap: () {
-            // Navigate to settings
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => AnimatedHomePage()),
+            );
           },
           child: Container(
             padding: const EdgeInsets.all(12),
@@ -335,7 +434,7 @@ class _ProfilePageState extends State<ProfilePage>
               ],
             ),
             child: const Icon(
-              Icons.settings,
+              Icons.home,
               color: Colors.pinkAccent,
               size: 22,
             ),
@@ -362,50 +461,53 @@ class _ProfilePageState extends State<ProfilePage>
                   shape: BoxShape.circle,
                   color: Colors.black54,
                   border: Border.all(
-                    color: _isEditing 
-                      ? Colors.greenAccent.withOpacity(0.8)
-                      : Colors.cyanAccent.withOpacity(0.8),
+                    color:
+                        _isEditing
+                            ? Colors.greenAccent.withOpacity(0.8)
+                            : Colors.cyanAccent.withOpacity(0.8),
                     width: 3,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: _isEditing 
-                        ? Colors.greenAccent.withOpacity(0.4)
-                        : Colors.cyanAccent.withOpacity(0.4),
+                      color:
+                          _isEditing
+                              ? Colors.greenAccent.withOpacity(0.4)
+                              : Colors.cyanAccent.withOpacity(0.4),
                       blurRadius: 15 * _pulseAnimation.value,
                       spreadRadius: 2 * _pulseAnimation.value,
                     ),
                   ],
                 ),
                 child: ClipOval(
-                  child: _profileImage != null
-                    ? Image.file(_profileImage!, fit: BoxFit.cover)
-                    : Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.person,
-                              size: 60,
-                              color: Colors.white.withOpacity(0.7),
+                  child:
+                      _profileImage != null
+                          ? Image.file(_profileImage!, fit: BoxFit.cover)
+                          : Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.person,
+                                  size: 60,
+                                  color: Colors.white.withOpacity(0.7),
+                                ),
+                                const SizedBox(height: 5),
+                                const Text(
+                                  'TAP TO\nUPLOAD',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontFamily: 'PixelFont',
+                                    fontSize: 12,
+                                    color: Colors.white70,
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 5),
-                            const Text(
-                              'TAP TO\nUPLOAD',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontFamily: 'PixelFont',
-                                fontSize: 12,
-                                color: Colors.white70,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                          ),
                 ),
               ),
             );
-          }
+          },
         ),
       ),
     );
@@ -429,9 +531,9 @@ class _ProfilePageState extends State<ProfilePage>
               return null;
             },
           ),
-          
+
           const SizedBox(height: 20),
-          
+
           // Username field
           _buildTextField(
             label: 'USERNAME',
@@ -464,10 +566,7 @@ class _ProfilePageState extends State<ProfilePage>
       decoration: BoxDecoration(
         color: Colors.black38,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: color.withOpacity(0.5),
-          width: 2,
-        ),
+        border: Border.all(color: color.withOpacity(0.5), width: 2),
         boxShadow: [
           BoxShadow(
             color: color.withOpacity(0.2),
@@ -491,10 +590,7 @@ class _ProfilePageState extends State<ProfilePage>
             color: color.withOpacity(0.7),
             fontSize: 14,
           ),
-          prefixIcon: Icon(
-            icon,
-            color: color,
-          ),
+          prefixIcon: Icon(icon, color: color),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,
@@ -545,7 +641,7 @@ class _ProfilePageState extends State<ProfilePage>
             ),
           ),
           const SizedBox(height: 20),
-          
+
           // Total hours
           AnimatedBuilder(
             animation: _animationController,
@@ -605,18 +701,18 @@ class _ProfilePageState extends State<ProfilePage>
                   ],
                 ),
               );
-            }
+            },
           ),
-          
+
           const SizedBox(height: 16),
-          
-          // Additional stats can be added here
+
+          // Additional stats
           Row(
             children: [
               Expanded(
                 child: _buildStatBlock(
                   label: 'GAMES',
-                  value: '34',
+                  value: _gamesPlayed.toString(),
                   icon: Icons.games,
                   color: Colors.greenAccent,
                 ),
@@ -625,7 +721,7 @@ class _ProfilePageState extends State<ProfilePage>
               Expanded(
                 child: _buildStatBlock(
                   label: 'WINS',
-                  value: '28',
+                  value: _gamesWon.toString(),
                   icon: Icons.emoji_events,
                   color: Colors.orangeAccent,
                 ),
@@ -636,7 +732,7 @@ class _ProfilePageState extends State<ProfilePage>
       ),
     );
   }
-  
+
   Widget _buildStatBlock({
     required String label,
     required String value,
@@ -648,10 +744,7 @@ class _ProfilePageState extends State<ProfilePage>
       decoration: BoxDecoration(
         color: Colors.black38,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: color.withOpacity(0.5),
-          width: 1.5,
-        ),
+        border: Border.all(color: color.withOpacity(0.5), width: 1.5),
         boxShadow: [
           BoxShadow(
             color: color.withOpacity(0.2),
@@ -662,11 +755,7 @@ class _ProfilePageState extends State<ProfilePage>
       ),
       child: Column(
         children: [
-          Icon(
-            icon,
-            color: color,
-            size: 24,
-          ),
+          Icon(icon, color: color, size: 24),
           const SizedBox(height: 8),
           Text(
             label,
@@ -702,49 +791,51 @@ class _ProfilePageState extends State<ProfilePage>
           width: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: 20),
           decoration: BoxDecoration(
-            color: _isEditing ? Colors.deepPurpleAccent : Colors.deepPurple.withOpacity(0.5),
+            color:
+                _isEditing
+                    ? Colors.deepPurpleAccent
+                    : Colors.deepPurple.withOpacity(0.5),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: Colors.white,
-              width: 3,
-            ),
+            border: Border.all(color: Colors.white, width: 3),
             boxShadow: [
               BoxShadow(
-                color: _isEditing 
-                  ? Colors.deepPurpleAccent.withOpacity(0.5)
-                  : Colors.transparent,
+                color:
+                    _isEditing
+                        ? Colors.deepPurpleAccent.withOpacity(0.5)
+                        : Colors.transparent,
                 blurRadius: 15,
                 spreadRadius: 1,
               ),
             ],
           ),
           child: Center(
-            child: _isSaving 
-              ? const SizedBox(
-                  height: 24,
-                  width: 24,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 3,
-                  ),
-                )
-              : const Text(
-                  'SAVE PROFILE',
-                  style: TextStyle(
-                    fontFamily: 'PixelFont',
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    letterSpacing: 2,
-                    shadows: [
-                      Shadow(
-                        blurRadius: 4.0,
-                        color: Colors.black,
-                        offset: Offset(2, 2),
+            child:
+                _isSaving
+                    ? const SizedBox(
+                      height: 24,
+                      width: 24,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 3,
                       ),
-                    ],
-                  ),
-                ),
+                    )
+                    : const Text(
+                      'SAVE PROFILE',
+                      style: TextStyle(
+                        fontFamily: 'PixelFont',
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        letterSpacing: 2,
+                        shadows: [
+                          Shadow(
+                            blurRadius: 4.0,
+                            color: Colors.black,
+                            offset: Offset(2, 2),
+                          ),
+                        ],
+                      ),
+                    ),
           ),
         ),
       ),
@@ -760,7 +851,7 @@ class Particle {
   double speed;
   double opacity;
   Color color;
-  
+
   Particle({
     required this.x,
     required this.y,
@@ -774,24 +865,21 @@ class Particle {
 // Custom painter for rendering particles
 class ParticlePainter extends CustomPainter {
   final List<Particle> particles;
-  
+
   ParticlePainter(this.particles);
-  
+
   @override
   void paint(Canvas canvas, Size size) {
     for (var particle in particles) {
-      final paint = Paint()
-        ..color = particle.color.withOpacity(particle.opacity)
-        ..style = PaintingStyle.fill;
-      
-      canvas.drawCircle(
-        Offset(particle.x, particle.y),
-        particle.size,
-        paint,
-      );
+      final paint =
+          Paint()
+            ..color = particle.color.withOpacity(particle.opacity)
+            ..style = PaintingStyle.fill;
+
+      canvas.drawCircle(Offset(particle.x, particle.y), particle.size, paint);
     }
   }
-  
+
   @override
   bool shouldRepaint(ParticlePainter oldDelegate) => true;
 }
@@ -800,21 +888,22 @@ class ParticlePainter extends CustomPainter {
 class GridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.cyanAccent.withOpacity(0.1)
-      ..strokeWidth = 1.0;
-    
+    final paint =
+        Paint()
+          ..color = Colors.cyanAccent.withOpacity(0.1)
+          ..strokeWidth = 1.0;
+
     // Draw horizontal lines
     final horizontalLineCount = 20;
     final verticalLineCount = 20;
-    
+
     // Horizontal lines
     final double horizontalSpacing = size.height / horizontalLineCount;
     for (int i = 0; i <= horizontalLineCount; i++) {
       final double y = i * horizontalSpacing;
       canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
     }
-    
+
     // Vertical lines
     final double verticalSpacing = size.width / verticalLineCount;
     for (int i = 0; i <= verticalLineCount; i++) {
@@ -822,7 +911,7 @@ class GridPainter extends CustomPainter {
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
     }
   }
-  
+
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
