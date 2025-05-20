@@ -4,7 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'dart:math';
 
 class AnimatedHomePage extends StatefulWidget {
-  const AnimatedHomePage({Key? key}) : super(key: key);
+  const AnimatedHomePage({super.key});
 
   @override
   _AnimatedHomePageState createState() => _AnimatedHomePageState();
@@ -12,31 +12,26 @@ class AnimatedHomePage extends StatefulWidget {
 
 class _AnimatedHomePageState extends State<AnimatedHomePage>
     with TickerProviderStateMixin {
-  // Multiple animation controllers for different elements
   late AnimationController _titleController;
   late AnimationController _buttonController;
   late AnimationController _particleController;
   late AnimationController _pulseController;
   
-  // Animations
+
   late Animation<double> _titleScale;
   late Animation<double> _titleGlow;
   late Animation<double> _buttonScale;
   late Animation<double> _buttonHover;
   late Animation<double> _pulseAnimation;
 
-  // Game options menu state
   bool _showOptions = false;
   
-  // For random particle generation
   final Random _random = Random();
   final List<Particle> _particles = [];
   
   @override
   void initState() {
     super.initState();
-    
-    // Title animations
     _titleController = AnimationController(
       duration: const Duration(seconds: 3),
       vsync: this,
@@ -58,7 +53,6 @@ class _AnimatedHomePageState extends State<AnimatedHomePage>
       curve: Curves.easeInOut
     ));
     
-    // Button animations
     _buttonController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
@@ -80,14 +74,11 @@ class _AnimatedHomePageState extends State<AnimatedHomePage>
       curve: Curves.easeOut
     ));
     
-    // Background particles animation
     _particleController = AnimationController(
       duration: const Duration(seconds: 20),
       vsync: this,
     )..repeat();
     _particleController.addListener(_updateParticles);
-    
-    // Pulsing effect for the background
     _pulseController = AnimationController(
       duration: const Duration(seconds: 4),
       vsync: this,
@@ -101,7 +92,6 @@ class _AnimatedHomePageState extends State<AnimatedHomePage>
       curve: Curves.easeInOut
     ));
     
-    // Start with an entrance animation
     Future.delayed(const Duration(milliseconds: 300), () {
       _animateEntrance();
     });
@@ -112,8 +102,6 @@ class _AnimatedHomePageState extends State<AnimatedHomePage>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    
-    // Generate particles here instead of in initState
     if (!_particlesGenerated) {
       _generateParticles();
       _particlesGenerated = true;
@@ -125,14 +113,11 @@ class _AnimatedHomePageState extends State<AnimatedHomePage>
   }
   
   void _generateParticles() {
-    // Clear existing particles
     _particles.clear();
     
-    // Get screen dimensions safely
     final double screenWidth = MediaQuery.of(context).size.width;
     final double screenHeight = MediaQuery.of(context).size.height;
     
-    // Generate new particles
     for (int i = 0; i < 50; i++) {
       _particles.add(Particle(
         x: _random.nextDouble() * screenWidth,
@@ -163,10 +148,7 @@ class _AnimatedHomePageState extends State<AnimatedHomePage>
     
     setState(() {
       for (var particle in _particles) {
-        // Move particles upwards
         particle.y -= particle.speed * 0.01;
-        
-        // Reset particles that go off screen
         if (particle.y < 0) {
           particle.y = screenHeight;
           particle.x = _random.nextDouble() * MediaQuery.of(context).size.width;
@@ -214,8 +196,6 @@ class _AnimatedHomePageState extends State<AnimatedHomePage>
 
   @override
   Widget build(BuildContext context) {
-    final Size screenSize = MediaQuery.of(context).size;
-    
     return Scaffold(
       backgroundColor: const Color(0xFF0A0E17),
       body: Stack(
@@ -243,8 +223,6 @@ class _AnimatedHomePageState extends State<AnimatedHomePage>
               );
             },
           ),
-          
-          // Background image with parallax effect
           AnimatedBuilder(
             animation: _pulseAnimation,
             builder: (context, child) {
@@ -264,25 +242,20 @@ class _AnimatedHomePageState extends State<AnimatedHomePage>
             },
           ),
           
-          // Particles
           CustomPaint(
             painter: ParticlePainter(_particles),
             size: Size.infinite,
           ),
-          
-          // Optional grid lines effect (created with Container instead of image)
           CustomPaint(
             painter: GridPainter(),
             size: Size.infinite,
           ),
           
-          // Main content
           SafeArea(
             child: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Game logo/title with glow effect
                   AnimatedBuilder(
                     animation: Listenable.merge([_titleScale, _titleGlow]),
                     builder: (context, child) {
@@ -368,7 +341,6 @@ class _AnimatedHomePageState extends State<AnimatedHomePage>
                   
                   const SizedBox(height: 60),
                   
-                  // Start game button with hover effect
                   GestureDetector(
                     onTapDown: (_) => _buttonController.forward(),
                     onTapUp: (_) {
@@ -434,7 +406,7 @@ class _AnimatedHomePageState extends State<AnimatedHomePage>
                   AnimatedSize(
                     duration: const Duration(milliseconds: 300),
                     curve: Curves.easeOut,
-                    child: Container(
+                    child: SizedBox(
                       height: _showOptions ? null : 0,
                       child: _showOptions
                           ? Column(
@@ -453,7 +425,6 @@ class _AnimatedHomePageState extends State<AnimatedHomePage>
                   
                   const Spacer(),
                   
-                  // Credits section with neon effect
                   _buildCreditsSection(),
                 ],
               ),
@@ -592,7 +563,6 @@ class _AnimatedHomePageState extends State<AnimatedHomePage>
   }
 }
 
-// Particle class for background effects
 class Particle {
   double x;
   double y;
@@ -611,7 +581,6 @@ class Particle {
   });
 }
 
-// Custom painter for rendering particles
 class ParticlePainter extends CustomPainter {
   final List<Particle> particles;
   
