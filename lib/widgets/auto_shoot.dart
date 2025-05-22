@@ -4,6 +4,7 @@ import 'dart:math';
 import 'dart:async';
 import 'animated_background.dart';
 import 'audio_player.dart';
+import 'homepage.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -111,7 +112,7 @@ class StartScreen extends StatelessWidget {
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
           ),
-          const SizedBox(height: 30,),
+          const SizedBox(height: 30),
           ElevatedButton(
             onPressed: onStart,
             style: ElevatedButton.styleFrom(
@@ -152,10 +153,11 @@ class _GameplayScreenState extends State<GameplayScreen> {
   Timer? _enemySpawnTimer;
   Timer? _projectileTimer;
   int score = 0;
+  int lives = 3; // Add lives system
   bool _gameOver = false;
   final Random _random = Random();
   
-  double _playerX = 0.5; // Position as percentage of screen width
+  double _playerX = 0.5; 
 
   final GameAudio _gameAudio = GameAudio();
   bool _audioInitialized = false;
@@ -170,7 +172,6 @@ class _GameplayScreenState extends State<GameplayScreen> {
     try {
       debugPrint('Initializing game resources...');
       
-      // Try to initialize audio
       debugPrint('Attempting to initialize audio...');
       await _gameAudio.initialize();
       
@@ -181,7 +182,6 @@ class _GameplayScreenState extends State<GameplayScreen> {
       debugPrint('Audio initialization complete');
     } catch (e) {
       debugPrint('Error during audio initialization: $e');
-      // Continue game without audio
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Sound effects could not be initialized'),
@@ -189,7 +189,6 @@ class _GameplayScreenState extends State<GameplayScreen> {
         ),
       );
     } finally {
-      // Start game regardless of audio initialization status
       _startGameLoop();
     }
   }
@@ -207,17 +206,14 @@ class _GameplayScreenState extends State<GameplayScreen> {
   }
 
   void _startGameLoop() {
-    // Game loop
     _gameTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
       _updateGame();
     });
     
-    // Enemy spawning
     _enemySpawnTimer = Timer.periodic(const Duration(milliseconds: 1500), (timer) {
       _spawnEnemy();
     });
     
-    // Auto-fire projectiles
     _projectileTimer = Timer.periodic(const Duration(milliseconds: 400), (timer) {
       _fireProjectile();
     });
@@ -227,10 +223,14 @@ class _GameplayScreenState extends State<GameplayScreen> {
     if (_gameOver) return;
     
     final size = MediaQuery.of(context).size;
+    // Spawn enemies only in 90% of screen width (5% margin on each side)
+    final spawnAreaWidth = size.width * 0.9;
+    final spawnAreaStart = size.width * 0.05;
+    
     final enemy = Enemy(
-      x: _random.nextDouble() * size.width,
+      x: spawnAreaStart + (_random.nextDouble() * spawnAreaWidth),
       y: -50,
-      width: 40 + _random.nextDouble() * 10, // More variety
+      width: 40 + _random.nextDouble() * 10,
       height: 40 + _random.nextDouble() * 10,
       speed: 1 + _random.nextDouble() * 3,
       health: 1 + _random.nextInt(3),
@@ -252,7 +252,6 @@ class _GameplayScreenState extends State<GameplayScreen> {
       speed: 8,
     );
 
-    // Only play sound if audio is initialized
     if (_audioInitialized) {
       _gameAudio.playBlastSound();
     }
@@ -262,46 +261,53 @@ class _GameplayScreenState extends State<GameplayScreen> {
     });
   }
 
+  void _loseLife() {
+    setState(() {
+      lives--;
+    });
+    
+    if (lives <= 0) {
+      _gameOver = true;
+      _endGame();
+    }
+  }
+
   void _updateGame() {
     if (_gameOver) return;
     
     setState(() {
-      // Update player position to follow touch/drag
       _player.x = MediaQuery.of(context).size.width * _playerX;
-      
-      // Move projectiles
+    
       for (int i = _projectiles.length - 1; i >= 0; i--) {
         _projectiles[i].y -= _projectiles[i].speed;
         
-        // Remove projectiles that go off screen
         if (_projectiles[i].y < -50) {
           _projectiles.removeAt(i);
         }
       }
       
-      // Move enemies
       final size = MediaQuery.of(context).size;
       for (int i = _enemies.length - 1; i >= 0; i--) {
         _enemies[i].y += _enemies[i].speed;
         
-        // Remove enemies that go off screen
+        // Check if enemy fell out of screen (missed by player)
         if (_enemies[i].y > size.height + 50) {
           _enemies.removeAt(i);
+          _loseLife(); // Lose life when enemy is missed
           continue;
         }
         
         // Check collision with player
         if (_checkCollision(_player, _enemies[i])) {
-          _gameOver = true;
           _addExplosion(_player.x, _player.y);
           
-          // Play explosion sound if audio is initialized
           if (_audioInitialized) {
             _gameAudio.playExplosionSound();
           }
           
-          _endGame();
-          break;
+          _enemies.removeAt(i);
+          _loseLife(); // Lose life when hit by enemy
+          continue;
         }
         
         // Check collision with projectiles
@@ -312,8 +318,7 @@ class _GameplayScreenState extends State<GameplayScreen> {
             
             if (_enemies[i].health <= 0) {
               _addExplosion(_enemies[i].x, _enemies[i].y);
-              
-              // Play explosion sound if audio is initialized
+
               if (_audioInitialized) {
                 _gameAudio.playExplosionSound();
               }
@@ -354,7 +359,6 @@ class _GameplayScreenState extends State<GameplayScreen> {
     _enemySpawnTimer?.cancel();
     _projectileTimer?.cancel();
     
-    // Show game over after a short delay
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
         _showGameOverDialog();
@@ -366,44 +370,154 @@ class _GameplayScreenState extends State<GameplayScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.black.withOpacity(0.8),
-        title: const Text(
-          'GAME OVER',
-          style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-          textAlign: TextAlign.center,
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 10),
-            Text(
-              'Your Score: $score',
-              style: const TextStyle(
-                fontSize: 24,
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.red.withOpacity(0.8),
+                Colors.black.withOpacity(0.9),
+              ],
             ),
-          ],
-        ),
-        actions: [
-          Center(
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.cyanAccent.withOpacity(0.2),
-                foregroundColor: Colors.white,
-                side: const BorderSide(color: Colors.cyanAccent),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.red, width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.red.withOpacity(0.5),
+                blurRadius: 20,
+                spreadRadius: 5,
               ),
-              onPressed: () {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (_) => const GameScreen()),
-                );
-              },
-              child: const Text('PLAY AGAIN'),
-            ),
+            ],
           ),
-        ],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'GAME OVER',
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  shadows: [
+                    Shadow(
+                      color: Colors.red.withOpacity(0.8),
+                      blurRadius: 10,
+                      offset: const Offset(0, 0),
+                    ),
+                  ],
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(15),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.cyanAccent.withOpacity(0.5)),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.stars, color: Colors.amber, size: 24),
+                        const SizedBox(width: 10),
+                        Text(
+                          'FINAL SCORE',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.amber.shade300,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        const Icon(Icons.stars, color: Colors.amber, size: 24),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      '$score',
+                      style: const TextStyle(
+                        fontSize: 36,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.favorite, color: Colors.red, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Lives Lost: ${3 - lives}',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      color: Colors.white70,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 30),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.cyanAccent.withOpacity(0.2),
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Colors.cyanAccent, width: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(builder: (_) => const GameScreen()),
+                      );
+                    },
+                    icon: const Icon(Icons.refresh, size: 20),
+                    label: const Text(
+                      'PLAY AGAIN',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red.withOpacity(0.2),
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Colors.red, width: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(builder: (_) => const AnimatedHomePage()),
+                      );
+                    },
+                    icon: const Icon(Icons.home, size: 20),
+                    label: const Text(
+                      'MAIN MENU',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -422,11 +536,9 @@ class _GameplayScreenState extends State<GameplayScreen> {
     return GestureDetector(
       onHorizontalDragUpdate: (details) {
         setState(() {
-          // Update player position (as percentage of screen width)
           final screenWidth = MediaQuery.of(context).size.width;
           _playerX += details.delta.dx / screenWidth;
           
-          // Clamp player position
           _playerX = _playerX.clamp(0.05, 0.95);
         });
       },
@@ -446,27 +558,59 @@ class _GameplayScreenState extends State<GameplayScreen> {
             ),
           ),
           
-          // Player ship
+          // Lives display
+          Positioned(
+            top: 20,
+            right: 20,
+            child: Row(
+              children: [
+                const Text(
+                  'LIVES: ',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                for (int i = 0; i < lives; i++)
+                  Container(
+                    margin: const EdgeInsets.only(left: 5),
+                    child: const Icon(
+                      Icons.favorite,
+                      color: Colors.red,
+                      size: 24,
+                    ),
+                  ),
+                for (int i = lives; i < 3; i++)
+                  Container(
+                    margin: const EdgeInsets.only(left: 5),
+                    child: const Icon(
+                      Icons.favorite_border,
+                      color: Colors.grey,
+                      size: 24,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          
           CustomPaint(
             painter: PlayerPainter(_player),
             size: Size.infinite,
           ),
-          
-          // Enemies
+        
           for (final enemy in _enemies)
             CustomPaint(
               painter: EnemyPainter(enemy),
               size: Size.infinite,
             ),
           
-          // Projectiles  
           for (final projectile in _projectiles)
             CustomPaint(
               painter: ProjectilePainter(projectile),
               size: Size.infinite,
             ),
             
-          // Explosions
           for (final explosion in _explosions)
             CustomPaint(
               painter: ExplosionPainter(explosion),
@@ -478,7 +622,6 @@ class _GameplayScreenState extends State<GameplayScreen> {
   }
 }
 
-// Base class for game objects
 class GameObject {
   double x;
   double y;
@@ -540,7 +683,6 @@ class Explosion {
   });
 }
 
-// Custom painters
 class PlayerPainter extends CustomPainter {
   final Player player;
   
@@ -552,7 +694,6 @@ class PlayerPainter extends CustomPainter {
       ..color = Colors.cyanAccent
       ..style = PaintingStyle.fill;
     
-    // Draw player ship
     final path = Path();
     path.moveTo(player.x, player.y - player.height / 2);
     path.lineTo(player.x - player.width / 2, player.y + player.height / 2);
@@ -561,7 +702,6 @@ class PlayerPainter extends CustomPainter {
     
     canvas.drawPath(path, paint);
     
-    // Draw engine glow
     final glowPaint = Paint()
       ..color = Colors.cyanAccent.withOpacity(0.5)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
@@ -585,7 +725,6 @@ class EnemyPainter extends CustomPainter {
   
   @override
   void paint(Canvas canvas, Size size) {
-    // Different colors for different enemy health
     Color enemyColor;
     switch (enemy.health) {
       case 1:
@@ -602,7 +741,6 @@ class EnemyPainter extends CustomPainter {
       ..color = enemyColor
       ..style = PaintingStyle.fill;
       
-    // Draw alien ship
     final path = Path();
     path.moveTo(enemy.x, enemy.y - enemy.height / 2);
     path.lineTo(enemy.x - enemy.width / 2, enemy.y);
@@ -612,8 +750,7 @@ class EnemyPainter extends CustomPainter {
     path.close();
     
     canvas.drawPath(path, paint);
-    
-    // Draw evil eye
+
     final eyePaint = Paint()
       ..color = Colors.white;
     
@@ -659,7 +796,6 @@ class ProjectilePainter extends CustomPainter {
       paint,
     );
     
-    // Add glow effect
     final glowPaint = Paint()
       ..color = Colors.cyanAccent.withOpacity(0.3)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
@@ -713,7 +849,6 @@ class ExplosionPainter extends CustomPainter {
       );
     }
     
-    // Core of explosion
     final corePaint = Paint()
       ..color = Colors.white.withOpacity(explosion.timeToLive / 30)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);

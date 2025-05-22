@@ -3,7 +3,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'animated_background.dart'; // Import the new background widget
 import 'profile.dart';
-import 'space_blaster.dart';
+import 'auto_shoot.dart';
 
 class AnimatedHomePage extends StatefulWidget {
   const AnimatedHomePage({super.key});
@@ -89,7 +89,6 @@ class _AnimatedHomePageState extends State<AnimatedHomePage>
     }
   }
 
-  // Show the game options
   void _toggleOptions() {
     setState(() {
       _showOptions = !_showOptions;
@@ -251,8 +250,6 @@ class _AnimatedHomePageState extends State<AnimatedHomePage>
                   },
                 ),
               ),
-
-              // Game options that appear when Start Game is pressed
               AnimatedSize(
                 duration: const Duration(milliseconds: 300),
                 curve: Curves.easeOut,
@@ -296,7 +293,6 @@ class _AnimatedHomePageState extends State<AnimatedHomePage>
   Widget _buildOptionButton(String text, Color color) {
     return GestureDetector(
       onTap: () {
-        // Handle option button taps
         if (text == '  PROFILE  ') {
           Navigator.push(
             context,
@@ -308,7 +304,6 @@ class _AnimatedHomePageState extends State<AnimatedHomePage>
             MaterialPageRoute(builder: (context) => SpaceBlasterApp()),
           );
         } else if (text == 'LEADERBOARD') {
-          // Continue saved game
         }
       },
       child: Container(

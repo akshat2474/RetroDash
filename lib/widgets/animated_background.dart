@@ -133,7 +133,7 @@ class _AnimatedBackgroundState extends State<AnimatedBackground>
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Animated background with pulsing effect
+
           AnimatedBuilder(
             animation: _pulseAnimation,
             builder: (context, child) {
@@ -156,14 +156,12 @@ class _AnimatedBackgroundState extends State<AnimatedBackground>
             },
           ),
           
-          // Particles
           if (widget.showParticles)
             CustomPaint(
               painter: ParticlePainter(_particles),
               size: Size.infinite,
             ),
           
-          // Grid
           if (widget.showGrid)
             CustomPaint(
               painter: GridPainter(
@@ -174,8 +172,6 @@ class _AnimatedBackgroundState extends State<AnimatedBackground>
               ), 
               size: Size.infinite,
             ),
-          
-          // Child content
           widget.child,
         ],
       ),
@@ -221,7 +217,6 @@ class ParticlePainter extends CustomPainter {
   bool shouldRepaint(ParticlePainter oldDelegate) => true;
 }
 
-// Custom painter for grid lines
 class GridPainter extends CustomPainter {
   final Color gridColor;
   final double lineWidth;
@@ -241,14 +236,12 @@ class GridPainter extends CustomPainter {
       ..color = gridColor
       ..strokeWidth = lineWidth;
 
-    // Horizontal lines
     final double horizontalSpacing = size.height / horizontalLineCount;
     for (int i = 0; i <= horizontalLineCount; i++) {
       final double y = i * horizontalSpacing;
       canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
     }
 
-    // Vertical lines
     final double verticalSpacing = size.width / verticalLineCount;
     for (int i = 0; i <= verticalLineCount; i++) {
       final double x = i * verticalSpacing;

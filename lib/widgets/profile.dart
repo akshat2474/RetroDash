@@ -16,31 +16,25 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage>
     with SingleTickerProviderStateMixin {
-  // Controllers for text fields
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
 
-  // Image picker
   final ImagePicker _picker = ImagePicker();
   File? _profileImage;
   String? _savedImagePath;
 
-  // Animations
   late AnimationController _animationController;
   late Animation<double> _pulseAnimation;
   late Animation<double> _rotateAnimation;
 
-  // Game stats
-  double _gameHours = 42.5; // Example value, replace with actual data
+  double _gameHours = 0; // Example value, replace with actual data
   int _gamesPlayed = 34;
   int _gamesWon = 28;
 
-  // Form validation
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   bool _isEditing = false;
   bool _isSaving = false;
 
-  // SharedPreferences keys
   static const String _nameKey = 'profile_name';
   static const String _usernameKey = 'profile_username';
   static const String _imagePathKey = 'profile_image_path';
@@ -52,7 +46,6 @@ class _ProfilePageState extends State<ProfilePage>
   void initState() {
     super.initState();
 
-    // Initialize animation controller
     _animationController = AnimationController(
       duration: const Duration(seconds: 3),
       vsync: this,
@@ -66,7 +59,6 @@ class _ProfilePageState extends State<ProfilePage>
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
 
-    // Load saved profile data
     _loadProfileData();
   }
 
@@ -75,12 +67,11 @@ class _ProfilePageState extends State<ProfilePage>
       final prefs = await SharedPreferences.getInstance();
 
       setState(() {
-        // Load text fields
+
         _nameController.text = prefs.getString(_nameKey) ?? "Pixel Warrior";
         _usernameController.text =
             prefs.getString(_usernameKey) ?? "pixel_dash_master";
 
-        // Load profile image path
         _savedImagePath = prefs.getString(_imagePathKey);
         if (_savedImagePath != null) {
           final file = File(_savedImagePath!);
@@ -89,7 +80,6 @@ class _ProfilePageState extends State<ProfilePage>
           }
         }
 
-        // Load game stats
         _gameHours = prefs.getDouble(_gameHoursKey) ?? 0;
         _gamesPlayed = prefs.getInt(_gamesPlayedKey) ?? 0;
         _gamesWon = prefs.getInt(_gamesWonKey) ?? 0;
@@ -145,15 +135,12 @@ class _ProfilePageState extends State<ProfilePage>
     if (_profileImage == null) return _savedImagePath;
 
     try {
-      // Get the app's document directory
       final appDir = await getApplicationDocumentsDirectory();
       final fileName = 'profile_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final savedImagePath = path.join(appDir.path, fileName);
 
-      // Copy the image to app documents directory for persistence
       final File newImage = await _profileImage!.copy(savedImagePath);
 
-      // Delete the old image if it exists and it's not the same as the new one
       if (_savedImagePath != null && _savedImagePath != savedImagePath) {
         final oldFile = File(_savedImagePath!);
         if (await oldFile.exists()) {
@@ -183,13 +170,8 @@ class _ProfilePageState extends State<ProfilePage>
       });
 
       try {
-        // Save profile image
         final imagePath = await _saveProfileImage();
-
-        // Get SharedPreferences instance
         final prefs = await SharedPreferences.getInstance();
-
-        // Save profile data
         await prefs.setString(_nameKey, _nameController.text);
         await prefs.setString(_usernameKey, _usernameController.text);
 
@@ -197,8 +179,6 @@ class _ProfilePageState extends State<ProfilePage>
           await prefs.setString(_imagePathKey, imagePath);
           _savedImagePath = imagePath;
         }
-
-        // Save game stats (in a real app, these would be updated elsewhere)
         await prefs.setDouble(_gameHoursKey, _gameHours);
         await prefs.setInt(_gamesPlayedKey, _gamesPlayed);
         await prefs.setInt(_gamesWonKey, _gamesWon);
@@ -272,7 +252,6 @@ class _ProfilePageState extends State<ProfilePage>
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        // Back button
         InkWell(
           onTap: () => Navigator.of(context).pop(),
           child: Container(
@@ -300,7 +279,6 @@ class _ProfilePageState extends State<ProfilePage>
           ),
         ),
 
-        // Title
         ShaderMask(
           shaderCallback: (Rect bounds) {
             return const LinearGradient(
@@ -328,7 +306,6 @@ class _ProfilePageState extends State<ProfilePage>
           ),
         ),
 
-        // Settings button
         InkWell(
           onTap: () {
             Navigator.push(
@@ -453,8 +430,6 @@ class _ProfilePageState extends State<ProfilePage>
           ),
 
           const SizedBox(height: 20),
-
-          // Username field
           _buildTextField(
             label: 'USERNAME',
             controller: _usernameController,
@@ -562,7 +537,6 @@ class _ProfilePageState extends State<ProfilePage>
           ),
           const SizedBox(height: 20),
 
-          // Total hours
           AnimatedBuilder(
             animation: _animationController,
             builder: (context, child) {
@@ -626,7 +600,6 @@ class _ProfilePageState extends State<ProfilePage>
 
           const SizedBox(height: 16),
 
-          // Additional stats
           Row(
             children: [
               Expanded(
