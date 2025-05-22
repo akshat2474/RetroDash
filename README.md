@@ -20,12 +20,6 @@
 
 ---
 
-Sure! Here's an updated version of your README with a **📸 Screenshots** section included. This section is placed after the **🎮 Controls** section and before **🤝 Contributing** for maximum visibility.
-
-You’ll need to add your actual screenshot image files to the `assets/images/` folder (or wherever you prefer) and link them accordingly.
-
----
-
 ## 📸 Screenshots
 
 Get a glimpse of the action before you play!
