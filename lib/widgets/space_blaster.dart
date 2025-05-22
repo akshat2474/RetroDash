@@ -313,12 +313,14 @@ class _GameplayScreenState extends State<GameplayScreen> with TickerProviderStat
       debugPrint('Audio initialization complete');
     } catch (e) {
       debugPrint('Error during audio initialization: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Sound effects could not be initialized'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sound effects could not be initialized'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
     } finally {
       _startGameLoop();
     }
@@ -919,193 +921,245 @@ class _GameplayScreenState extends State<GameplayScreen> with TickerProviderStat
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        // Main game area with gesture detection and screen shake effect
-        AnimatedBuilder(
-          animation: _nukeAnimationController,
-          builder: (context, child) {
-            return Transform.translate(
-              offset: Offset(_screenShakeX.value, _screenShakeY.value),
-              child: Positioned.fill(
-                child: GestureDetector(
-                  onHorizontalDragStart: (details) {
-                    _isDragging = true;
-                  },
-                  onHorizontalDragUpdate: (details) {
-                    setState(() {
-                      final screenWidth = MediaQuery.of(context).size.width;
-                      _playerX += details.delta.dx / screenWidth;
-                      _playerX = _playerX.clamp(0.05, 0.95);
-                    });
-                  },
-                  onHorizontalDragEnd: (details) {
-                    _isDragging = false;
-                  },
-                  onTapDown: _onScreenTap,
-                  child: Container(
-                    color: Colors.transparent,
-                    child: Stack(
-                      children: [
-                        // Game objects
-                        CustomPaint(
-                          painter: PlayerPainter(_player),
+    return Scaffold(
+      body: AnimatedBackground(
+        backgroundColor: const Color(0xFF0A0E17),
+        showGrid: true,
+        showParticles: true,
+        particleCount: 50,
+        particleColors: const [
+          Colors.cyanAccent,
+          Colors.blueAccent,
+          Colors.purpleAccent,
+          Colors.white,
+        ],
+        child: Stack(
+          children: [
+            // Main game area with gesture detection and screen shake effect
+            AnimatedBuilder(
+              animation: _nukeAnimationController,
+              builder: (context, child) {
+                return Transform.translate(
+                  offset: Offset(_screenShakeX.value, _screenShakeY.value),
+                  child: SizedBox.expand(
+                    child: GestureDetector(
+                      onHorizontalDragStart: (details) {
+                        _isDragging = true;
+                      },
+                      onHorizontalDragUpdate: (details) {
+                        setState(() {
+                          final screenWidth = MediaQuery.of(context).size.width;
+                          _playerX += details.delta.dx / screenWidth;
+                          _playerX = _playerX.clamp(0.05, 0.95);
+                        });
+                      },
+                      onHorizontalDragEnd: (details) {
+                        _isDragging = false;
+                      },
+                      onTapDown: _onScreenTap,
+                      child: Container(
+                        color: Colors.transparent,
+                        child: Stack(
+                          children: [
+                            // Game objects
+                            CustomPaint(
+                              painter: PlayerPainter(_player),
+                              size: Size.infinite,
+                            ),
+                          
+                            for (final enemy in _enemies)
+                              CustomPaint(
+                                painter: EnemyPainter(enemy),
+                                size: Size.infinite,
+                              ),
+                            
+                            for (final projectile in _projectiles)
+                              CustomPaint(
+                                painter: ProjectilePainter(projectile),
+                                size: Size.infinite,
+                              ),
+                              
+                            for (final explosion in _explosions)
+                              CustomPaint(
+                                painter: ExplosionPainter(explosion),
+                                size: Size.infinite,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+
+          // Nuclear explosion effect
+          if (_showNukeEffect)
+            AnimatedBuilder(
+              animation: _nukeAnimationController,
+              builder: (context, child) {
+                return Stack(
+                  children: [
+                    // Bright flash effect
+                    if (_nukeFlashOpacity.value > 0)
+                      Positioned.fill(
+                        child: Container(
+                          color: Colors.white.withOpacity(_nukeFlashOpacity.value * 0.9),
+                        ),
+                      ),
+                    
+                    // Shockwave effect
+                    if (_nukeShockwaveRadius.value > 0)
+                      Positioned.fill(
+                        child: CustomPaint(
+                          painter: NukeShockwavePainter(
+                            radius: _nukeShockwaveRadius.value,
+                            opacity: _nukeShockwaveOpacity.value,
+                            centerX: MediaQuery.of(context).size.width / 2,
+                            centerY: MediaQuery.of(context).size.height / 2,
+                          ),
                           size: Size.infinite,
                         ),
-                      
-                        for (final enemy in _enemies)
-                          CustomPaint(
-                            painter: EnemyPainter(enemy),
-                            size: Size.infinite,
-                          ),
-                        
-                        for (final projectile in _projectiles)
-                          CustomPaint(
-                            painter: ProjectilePainter(projectile),
-                            size: Size.infinite,
-                          ),
-                          
-                        for (final explosion in _explosions)
-                          CustomPaint(
-                            painter: ExplosionPainter(explosion),
-                            size: Size.infinite,
-                          ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          
+          // Score display
+          Positioned(
+            top: 20,
+            left: 20,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'SCORE: $score',
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                Text(
+                  widget.autoFire ? 'AUTO FIRE' : 'MANUAL FIRE',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: widget.autoFire ? Colors.cyanAccent : Colors.orangeAccent,
+                  ),
+                ),
+                if (_rapidFireActive)
+                  Text(
+                    'RAPID FIRE!',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.yellowAccent,
+                      shadows: [
+                        Shadow(
+                          color: Colors.yellowAccent.withOpacity(0.8),
+                          blurRadius: 10,
+                        ),
                       ],
                     ),
                   ),
-                ),
-              ),
-            );
-          },
-        ),
-
-        // Nuclear explosion effect
-        if (_showNukeEffect)
-          AnimatedBuilder(
-            animation: _nukeAnimationController,
-            builder: (context, child) {
-              return Stack(
-                children: [
-                  // Bright flash effect
-                  if (_nukeFlashOpacity.value > 0)
-                    Positioned.fill(
-                      child: Container(
-                        color: Colors.white.withOpacity(_nukeFlashOpacity.value * 0.9),
-                      ),
-                    ),
-                  
-                  // Shockwave effect
-                  if (_nukeShockwaveRadius.value > 0)
-                    Positioned.fill(
-                      child: CustomPaint(
-                        painter: NukeShockwavePainter(
-                          radius: _nukeShockwaveRadius.value,
-                          opacity: _nukeShockwaveOpacity.value,
-                          centerX: MediaQuery.of(context).size.width / 2,
-                          centerY: MediaQuery.of(context).size.height / 2,
-                        ),
-                        size: Size.infinite,
-                      ),
-                    ),
-                ],
-              );
-            },
+              ],
+            ),
           ),
-        
-        // Score display
-        Positioned(
-          top: 20,
-          left: 20,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'SCORE: $score',
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-              Text(
-                widget.autoFire ? 'AUTO FIRE' : 'MANUAL FIRE',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: widget.autoFire ? Colors.cyanAccent : Colors.orangeAccent,
-                ),
-              ),
-              if (_rapidFireActive)
-                Text(
-                  'RAPID FIRE!',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.yellowAccent,
-                    shadows: [
-                      Shadow(
-                        color: Colors.yellowAccent.withOpacity(0.8),
-                        blurRadius: 10,
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-        ),
-        
-        // Lives display
-        Positioned(
-          top: 20,
-          right: 20,
-          child: Row(
-            children: [
-              const Text(
-                'LIVES: ',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-              for (int i = 0; i < lives; i++)
-                Container(
-                  margin: const EdgeInsets.only(left: 5),
-                  child: const Icon(
-                    Icons.favorite,
-                    color: Colors.red,
-                    size: 24,
-                  ),
-                ),
-              for (int i = lives; i < 3; i++)
-                Container(
-                  margin: const EdgeInsets.only(left: 5),
-                  child: const Icon(
-                    Icons.favorite_border,
-                    color: Colors.grey,
-                    size: 24,
-                  ),
-                ),
-            ],
-          ),
-        ),
-        
-        // Power-up buttons - positioned outside of main gesture detector
-        if (widget.autoFire && (_hasRapidFirePowerUp || _hasBigExplosionPowerUp))
+          
+          // Lives display
           Positioned(
-            top: 100,
+            top: 20,
             right: 20,
-            child: Column(
+            child: Row(
               children: [
-                if (_hasRapidFirePowerUp)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Material(
+                const Text(
+                  'LIVES: ',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                for (int i = 0; i < lives; i++)
+                  Container(
+                    margin: const EdgeInsets.only(left: 5),
+                    child: const Icon(
+                      Icons.favorite,
+                      color: Colors.red,
+                      size: 24,
+                    ),
+                  ),
+                for (int i = lives; i < 3; i++)
+                  Container(
+                    margin: const EdgeInsets.only(left: 5),
+                    child: const Icon(
+                      Icons.favorite_border,
+                      color: Colors.grey,
+                      size: 24,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          
+          // Power-up buttons for auto-fire mode
+          if (widget.autoFire && (_hasRapidFirePowerUp || _hasBigExplosionPowerUp))
+            Positioned(
+              top: 100,
+              right: 20,
+              child: Column(
+                children: [
+                  if (_hasRapidFirePowerUp)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            debugPrint('Rapid Fire button tapped');
+                            _useRapidFirePowerUp();
+                          },
+                          borderRadius: BorderRadius.circular(20),
+                          child: AnimatedBuilder(
+                            animation: _powerUpPulse,
+                            builder: (context, child) {
+                              return Transform.scale(
+                                scale: _powerUpPulse.value,
+                                child: Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.yellowAccent.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(color: Colors.yellowAccent, width: 2),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.yellowAccent.withOpacity(0.3),
+                                        blurRadius: 10,
+                                        spreadRadius: 2,
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.flash_on,
+                                    color: Colors.yellowAccent,
+                                    size: 30,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (_hasBigExplosionPowerUp)
+                    Material(
                       color: Colors.transparent,
                       child: InkWell(
                         onTap: () {
-                          debugPrint('Rapid Fire button tapped');
-                          _useRapidFirePowerUp();
+                          debugPrint('Big Explosion button tapped');
+                          _useBigExplosionPowerUp();
                         },
                         borderRadius: BorderRadius.circular(20),
                         child: AnimatedBuilder(
@@ -1116,20 +1170,20 @@ class _GameplayScreenState extends State<GameplayScreen> with TickerProviderStat
                               child: Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: Colors.yellowAccent.withOpacity(0.2),
+                                  color: Colors.redAccent.withOpacity(0.2),
                                   borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: Colors.yellowAccent, width: 2),
+                                  border: Border.all(color: Colors.redAccent, width: 2),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.yellowAccent.withOpacity(0.3),
+                                      color: Colors.redAccent.withOpacity(0.3),
                                       blurRadius: 10,
                                       spreadRadius: 2,
                                     ),
                                   ],
                                 ),
                                 child: const Icon(
-                                  Icons.flash_on,
-                                  color: Colors.yellowAccent,
+                                  Icons.auto_awesome,
+                                  color: Colors.redAccent,
                                   size: 30,
                                 ),
                               ),
@@ -1138,86 +1192,104 @@ class _GameplayScreenState extends State<GameplayScreen> with TickerProviderStat
                         ),
                       ),
                     ),
-                  ),
-                if (_hasBigExplosionPowerUp)
-                  Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () {
-                        debugPrint('Big Explosion button tapped');
-                        _useBigExplosionPowerUp();
-                      },
-                      borderRadius: BorderRadius.circular(20),
-                      child: AnimatedBuilder(
-                        animation: _powerUpPulse,
-                        builder: (context, child) {
-                          return Transform.scale(
-                            scale: _powerUpPulse.value,
-                            child: Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.redAccent.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: Colors.redAccent, width: 2),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.redAccent.withOpacity(0.3),
-                                    blurRadius: 10,
-                                    spreadRadius: 2,
-                                  ),
-                                ],
-                              ),
-                              child: const Icon(
-                                Icons.auto_awesome,
-                                color: Colors.redAccent,
-                                size: 30,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-              ],
+                ],
+              ),
             ),
-          ),
-        
-        // Big explosion button for manual mode (only big explosion)
-        if (!widget.autoFire && _hasBigExplosionPowerUp)
-          Positioned(
-            top: 100,
-            right: 20,
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () {
-                  debugPrint('Big Explosion button tapped (manual mode)');
-                  _useBigExplosionPowerUp();
-                },
-                borderRadius: BorderRadius.circular(20),
+          
+          // Big explosion button for manual mode (only big explosion)
+          if (!widget.autoFire && _hasBigExplosionPowerUp)
+            Positioned(
+              top: 100,
+              right: 20,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () {
+                    debugPrint('Big Explosion button tapped (manual mode)');
+                    _useBigExplosionPowerUp();
+                  },
+                  borderRadius: BorderRadius.circular(20),
+                  child: AnimatedBuilder(
+                    animation: _powerUpPulse,
+                    builder: (context, child) {
+                      return Transform.scale(
+                        scale: _powerUpPulse.value,
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.redAccent.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.redAccent, width: 2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.redAccent.withOpacity(0.3),
+                                blurRadius: 10,
+                                spreadRadius: 2,
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.auto_awesome,
+                            color: Colors.redAccent,
+                            size: 30,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          
+          // Power-up unlocked message (centered)
+          if (_showPowerUpMessage)
+            Positioned.fill(
+              child: Center(
                 child: AnimatedBuilder(
-                  animation: _powerUpPulse,
+                  animation: _powerUpMessageController,
                   builder: (context, child) {
                     return Transform.scale(
-                      scale: _powerUpPulse.value,
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.redAccent.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.redAccent, width: 2),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.redAccent.withOpacity(0.3),
-                              blurRadius: 10,
-                              spreadRadius: 2,
+                      scale: _powerUpMessageScale.value,
+                      child: Opacity(
+                        opacity: _powerUpMessageOpacity.value,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.amber.withOpacity(0.9),
+                                Colors.orange.withOpacity(0.9),
+                              ],
                             ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.auto_awesome,
-                          color: Colors.redAccent,
-                          size: 30,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: Colors.amber,
+                              width: 3,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.amber.withOpacity(0.5),
+                                blurRadius: 20,
+                                spreadRadius: 5,
+                              ),
+                            ],
+                          ),
+                          child: Text(
+                            _powerUpMessage,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              shadows: [
+                                Shadow(
+                                  color: Colors.black,
+                                  blurRadius: 5,
+                                  offset: Offset(2, 2),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                     );
@@ -1225,142 +1297,86 @@ class _GameplayScreenState extends State<GameplayScreen> with TickerProviderStat
                 ),
               ),
             ),
-          ),
-        
-        // Power-up unlocked message (centered)
-        if (_showPowerUpMessage)
-          Positioned.fill(
-            child: Center(
-              child: AnimatedBuilder(
-                animation: _powerUpMessageController,
-                builder: (context, child) {
-                  return Transform.scale(
-                    scale: _powerUpMessageScale.value,
-                    child: Opacity(
-                      opacity: _powerUpMessageOpacity.value,
+          
+          // Manual fire instruction with animation
+          if (!widget.autoFire && _showInstruction)
+            Positioned.fill(
+              child: Center(
+                child: AnimatedBuilder(
+                  animation: _instructionOpacity,
+                  builder: (context, child) {
+                    return Opacity(
+                      opacity: _instructionOpacity.value,
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
                         decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.amber.withOpacity(0.9),
-                              Colors.orange.withOpacity(0.9),
-                            ],
-                          ),
+                          color: Colors.black.withOpacity(0.7),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: Colors.amber,
-                            width: 3,
+                            color: Colors.orangeAccent.withOpacity(0.8),
+                            width: 2,
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.amber.withOpacity(0.5),
+                              color: Colors.orangeAccent.withOpacity(0.3),
                               blurRadius: 20,
                               spreadRadius: 5,
                             ),
                           ],
                         ),
-                        child: Text(
-                          _powerUpMessage,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            shadows: [
-                              Shadow(
-                                color: Colors.black,
-                                blurRadius: 5,
-                                offset: Offset(2, 2),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'TAP TO SHOOT',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 32,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.orangeAccent,
+                                shadows: [
+                                  Shadow(
+                                    color: Colors.orangeAccent.withOpacity(0.8),
+                                    blurRadius: 15,
+                                    offset: const Offset(0, 0),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-        
-        // Manual fire instruction with animation
-        if (!widget.autoFire && _showInstruction)
-          Positioned.fill(
-            child: Center(
-              child: AnimatedBuilder(
-                animation: _instructionOpacity,
-                builder: (context, child) {
-                  return Opacity(
-                    opacity: _instructionOpacity.value,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.7),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: Colors.orangeAccent.withOpacity(0.8),
-                          width: 2,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.orangeAccent.withOpacity(0.3),
-                            blurRadius: 20,
-                            spreadRadius: 5,
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'TAP TO SHOOT',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              'DRAG TO MOVE',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.cyanAccent,
+                                shadows: [
+                                  Shadow(
+                                    color: Colors.cyanAccent.withOpacity(0.8),
+                                    blurRadius: 15,
+                                    offset: const Offset(0, 0),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            const Icon(
+                              Icons.touch_app,
                               color: Colors.orangeAccent,
-                              shadows: [
-                                Shadow(
-                                  color: Colors.orangeAccent.withOpacity(0.8),
-                                  blurRadius: 15,
-                                  offset: const Offset(0, 0),
-                                ),
-                              ],
+                              size: 48,
                             ),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            'DRAG TO MOVE',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.cyanAccent,
-                              shadows: [
-                                Shadow(
-                                  color: Colors.cyanAccent.withOpacity(0.8),
-                                  blurRadius: 15,
-                                  offset: const Offset(0, 0),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          const Icon(
-                            Icons.touch_app,
-                            color: Colors.orangeAccent,
-                            size: 48,
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
             ),
-          ),
-      ],
+          ],
+        ),
+      ),
     );
   }
 }
