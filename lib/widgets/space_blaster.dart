@@ -152,7 +152,6 @@ class _GameplayScreenState extends State<GameplayScreen>
   final List<Projectile> _projectiles = [];
   final List<Explosion> _explosions = [];
 
-  // Boss fight properties
   bool _bossActive = false;
   Boss? _currentBoss;
   final List<BossLaser> _bossLasers = [];
@@ -167,14 +166,12 @@ class _GameplayScreenState extends State<GameplayScreen>
   bool _gameOver = false;
   final Random _random = Random();
 
-  // Power-up states
   bool _rapidFireActive = false;
   Timer? _rapidFireTimer;
   bool _hasRapidFirePowerUp = false;
   bool _hasBigExplosionPowerUp = false;
 
-  // Fire rate variables
-  int _baseFireRate = 400; // milliseconds
+  int _baseFireRate = 400;
   int get _currentFireRate =>
       _rapidFireActive ? (_baseFireRate ~/ 2) : _baseFireRate;
 
@@ -184,23 +181,19 @@ class _GameplayScreenState extends State<GameplayScreen>
   final GameAudio _gameAudio = GameAudio();
   bool _audioInitialized = false;
 
-  // Animation controller for tap instruction
   late AnimationController _instructionAnimationController;
   late Animation<double> _instructionOpacity;
   bool _showInstruction = false;
 
-  // Power-up animation controllers
   late AnimationController _powerUpAnimationController;
   late Animation<double> _powerUpPulse;
 
-  // Power-up message animation
   late AnimationController _powerUpMessageController;
   late Animation<double> _powerUpMessageOpacity;
   late Animation<double> _powerUpMessageScale;
   String _powerUpMessage = '';
   bool _showPowerUpMessage = false;
 
-  // Nuclear explosion animation
   late AnimationController _nukeAnimationController;
   late Animation<double> _nukeFlashOpacity;
   late Animation<double> _nukeShockwaveRadius;
@@ -213,7 +206,6 @@ class _GameplayScreenState extends State<GameplayScreen>
   void initState() {
     super.initState();
 
-    // Initialize animation controllers
     _instructionAnimationController = AnimationController(
       duration: const Duration(milliseconds: 1500),
       vsync: this,
@@ -238,7 +230,6 @@ class _GameplayScreenState extends State<GameplayScreen>
       ),
     );
 
-    // Power-up message animation
     _powerUpMessageController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
@@ -258,7 +249,6 @@ class _GameplayScreenState extends State<GameplayScreen>
       ),
     );
 
-    // Nuclear explosion animation
     _nukeAnimationController = AnimationController(
       duration: const Duration(milliseconds: 2000),
       vsync: this,
@@ -348,16 +338,13 @@ class _GameplayScreenState extends State<GameplayScreen>
       _spawnEnemy();
     });
 
-    // Only start auto-fire timer if in auto-fire mode
     if (widget.autoFire) {
       _startAutoFireTimer();
     } else {
-      // Show instruction for manual fire mode
       setState(() {
         _showInstruction = true;
       });
 
-      // Start fade out animation after 3.5 seconds, complete fade by 5 seconds
       _instructionTimer = Timer(const Duration(milliseconds: 3500), () {
         if (mounted) {
           _instructionAnimationController.forward().then((_) {
@@ -426,14 +413,11 @@ class _GameplayScreenState extends State<GameplayScreen>
             50 + (_nextBossScore ~/ 500) * 20, // Boss gets stronger each time
       );
 
-      // Stop spawning regular enemies during boss fight
       _enemySpawnTimer?.cancel();
 
-      // Start boss attack pattern
       _currentBoss!.startAttacking(_fireBossLaser);
     });
 
-    // Show boss introduction message
     setState(() {
       _powerUpMessage = 'BOSS FIGHT!';
       _showPowerUpMessage = true;
@@ -448,7 +432,6 @@ class _GameplayScreenState extends State<GameplayScreen>
       }
     });
 
-    // Add screen shake effect
     _shakeScreen();
   }
 
@@ -461,7 +444,6 @@ class _GameplayScreenState extends State<GameplayScreen>
   }
 
   void _defeatBoss() {
-    // Create multiple explosions for dramatic effect
     for (int i = 0; i < 10; i++) {
       _addExplosion(
         _currentBoss!.x + (_random.nextDouble() - 0.5) * 100,
@@ -473,11 +455,9 @@ class _GameplayScreenState extends State<GameplayScreen>
       _gameAudio.playExplosionSound();
     }
 
-    // Award bonus points
     int bossPoints = 100 + (_nextBossScore ~/ 500) * 50;
     score += bossPoints;
 
-    // Award extra life
     setState(() {
       lives = min(lives + 1, 5); // Cap at 5 lives
       _powerUpMessage = 'EXTRA LIFE GAINED!';
@@ -493,16 +473,13 @@ class _GameplayScreenState extends State<GameplayScreen>
       }
     });
 
-    // Clean up boss
     _currentBoss!.dispose();
     _currentBoss = null;
     _bossActive = false;
     _bossLasers.clear();
 
-    // Set next boss milestone
     _nextBossScore += 500;
 
-    // Resume normal enemy spawning
     _enemySpawnTimer = Timer.periodic(const Duration(milliseconds: 1500), (
       timer,
     ) {
@@ -513,7 +490,6 @@ class _GameplayScreenState extends State<GameplayScreen>
   void _shakeScreen() {
     _nukeAnimationController.reset();
 
-    // Create random screen shake effect
     final random = Random();
     _screenShakeX = Tween<double>(
       begin: -5.0 + random.nextDouble() * 10,
@@ -559,7 +535,6 @@ class _GameplayScreenState extends State<GameplayScreen>
   }
 
   void _onScreenTap(TapDownDetails details) {
-    // Only fire manually if not in auto-fire mode and not dragging
     if (!widget.autoFire && !_isDragging) {
       _fireProjectile();
     }
@@ -591,7 +566,6 @@ class _GameplayScreenState extends State<GameplayScreen>
       _hasRapidFirePowerUp = false;
     });
 
-    // Show activation message
     setState(() {
       _powerUpMessage = 'RAPID FIRE ACTIVATED!';
       _showPowerUpMessage = true;
@@ -624,12 +598,10 @@ class _GameplayScreenState extends State<GameplayScreen>
 
     debugPrint('Activating Big Explosion power-up');
 
-    // Start nuclear explosion animation
     setState(() {
       _showNukeEffect = true;
     });
 
-    // Create random screen shake effect
     final random = Random();
     _screenShakeX = Tween<double>(
       begin: -10.0 + random.nextDouble() * 20,
@@ -660,11 +632,9 @@ class _GameplayScreenState extends State<GameplayScreen>
       }
     });
 
-    // Delay the actual destruction to sync with the shockwave
     Timer(const Duration(milliseconds: 200), () {
       if (!mounted) return;
 
-      // Show activation message
       setState(() {
         _powerUpMessage = 'NUCLEAR STRIKE!';
         _showPowerUpMessage = true;
@@ -679,10 +649,8 @@ class _GameplayScreenState extends State<GameplayScreen>
         }
       });
 
-      // Create massive explosion effects for each enemy
       for (final enemy in _enemies) {
         _addExplosion(enemy.x, enemy.y);
-        // Add extra explosions around each enemy for more dramatic effect
         for (int i = 0; i < 3; i++) {
           _addExplosion(
             enemy.x + (Random().nextDouble() - 0.5) * 100,
@@ -692,7 +660,6 @@ class _GameplayScreenState extends State<GameplayScreen>
         score += 10;
       }
 
-      // Add multiple central explosions
       final size = MediaQuery.of(context).size;
       for (int i = 0; i < 8; i++) {
         _addExplosion(
@@ -729,16 +696,13 @@ class _GameplayScreenState extends State<GameplayScreen>
     setState(() {
       _player.x = MediaQuery.of(context).size.width * _playerX;
 
-      // Check if we should spawn a boss
       if (!_bossActive && score >= _nextBossScore) {
         _spawnBoss();
       }
 
-      // Update boss if active
       if (_bossActive && _currentBoss != null) {
         _currentBoss!.update(MediaQuery.of(context).size);
 
-        // Update boss lasers
         for (int i = _bossLasers.length - 1; i >= 0; i--) {
           _bossLasers[i].y += _bossLasers[i].speed;
 
@@ -747,7 +711,6 @@ class _GameplayScreenState extends State<GameplayScreen>
             continue;
           }
 
-          // Check collision with player
           if (_checkCollision(_bossLasers[i], _player)) {
             _bossLasers.removeAt(i);
             _loseLife();
@@ -755,13 +718,11 @@ class _GameplayScreenState extends State<GameplayScreen>
           }
         }
 
-        // Check projectile collision with boss
         for (int j = _projectiles.length - 1; j >= 0; j--) {
           if (_checkCollision(_projectiles[j], _currentBoss!)) {
             _projectiles.removeAt(j);
             _currentBoss!.health--;
 
-            // Check if boss is defeated
             if (_currentBoss!.health <= 0) {
               _defeatBoss();
             }
@@ -769,7 +730,6 @@ class _GameplayScreenState extends State<GameplayScreen>
         }
       }
 
-      // Update projectiles
       for (int i = _projectiles.length - 1; i >= 0; i--) {
         _projectiles[i].y -= _projectiles[i].speed;
 
@@ -815,18 +775,14 @@ class _GameplayScreenState extends State<GameplayScreen>
               score += 10;
               _enemies.removeAt(i);
 
-              // Check for power-up unlocks
               if (widget.autoFire &&
                   !_hasRapidFirePowerUp &&
                   !_rapidFireActive) {
-                // Rapid Fire appears at 50, 150, 250, 350, etc. (every 100 points after 50)
                 int rapidFireInterval = 100;
                 int firstRapidFire = 50;
 
-                // Check if we've reached a rapid fire milestone
                 bool shouldUnlockRapidFire = false;
                 if (score >= firstRapidFire) {
-                  // Calculate which milestone we should be at
                   int expectedMilestone = firstRapidFire;
                   while (expectedMilestone <= score) {
                     if (score >= expectedMilestone &&
@@ -844,11 +800,8 @@ class _GameplayScreenState extends State<GameplayScreen>
                 }
               }
 
-              // Big Explosion appears every 200 points (200, 400, 600, etc.)
               if (!_hasBigExplosionPowerUp) {
                 int bigExplosionInterval = 200;
-
-                // Check if we've reached a big explosion milestone
                 bool shouldUnlockBigExplosion = false;
                 int expectedMilestone = bigExplosionInterval;
                 while (expectedMilestone <= score) {
@@ -881,7 +834,6 @@ class _GameplayScreenState extends State<GameplayScreen>
   }
 
   bool _checkCollision(dynamic a, dynamic b) {
-    // Increased hitbox multiplier for better collision detection
     double hitboxMultiplier = 1.5;
 
     double aLeft = a.x - (a.width * hitboxMultiplier) / 2;
@@ -1136,7 +1088,6 @@ class _GameplayScreenState extends State<GameplayScreen>
         ],
         child: Stack(
           children: [
-            // Main game area with gesture detection and screen shake effect
             AnimatedBuilder(
               animation: _nukeAnimationController,
               builder: (context, child) {
@@ -1162,20 +1113,16 @@ class _GameplayScreenState extends State<GameplayScreen>
                         color: Colors.transparent,
                         child: Stack(
                           children: [
-                            // Game objects
                             CustomPaint(
                               painter: PlayerPainter(_player),
                               size: Size.infinite,
                             ),
-
-                            // Boss
                             if (_bossActive && _currentBoss != null)
                               CustomPaint(
                                 painter: BossPainter(_currentBoss!),
                                 size: Size.infinite,
                               ),
 
-                            // Boss lasers
                             for (final laser in _bossLasers)
                               CustomPaint(
                                 painter: BossLaserPainter(laser),
@@ -1207,15 +1154,12 @@ class _GameplayScreenState extends State<GameplayScreen>
                 );
               },
             ),
-
-            // Nuclear explosion effect
             if (_showNukeEffect)
               AnimatedBuilder(
                 animation: _nukeAnimationController,
                 builder: (context, child) {
                   return Stack(
                     children: [
-                      // Bright flash effect
                       if (_nukeFlashOpacity.value > 0)
                         Positioned.fill(
                           child: Container(
@@ -1225,7 +1169,6 @@ class _GameplayScreenState extends State<GameplayScreen>
                           ),
                         ),
 
-                      // Shockwave effect
                       if (_nukeShockwaveRadius.value > 0)
                         Positioned.fill(
                           child: CustomPaint(
@@ -1243,7 +1186,6 @@ class _GameplayScreenState extends State<GameplayScreen>
                 },
               ),
 
-            // Score display
             Positioned(
               top: 20,
               left: 20,
@@ -1288,7 +1230,6 @@ class _GameplayScreenState extends State<GameplayScreen>
               ),
             ),
 
-            // Lives display
             Positioned(
               top: 20,
               right: 20,
@@ -1324,7 +1265,6 @@ class _GameplayScreenState extends State<GameplayScreen>
               ),
             ),
 
-            // Power-up buttons for auto-fire mode
             if (widget.autoFire &&
                 (_hasRapidFirePowerUp || _hasBigExplosionPowerUp))
               Positioned(
@@ -1428,7 +1368,6 @@ class _GameplayScreenState extends State<GameplayScreen>
                 ),
               ),
 
-            // Big explosion button for manual mode (only big explosion)
             if (!widget.autoFire && _hasBigExplosionPowerUp)
               Positioned(
                 top: 100,
@@ -1476,7 +1415,6 @@ class _GameplayScreenState extends State<GameplayScreen>
                 ),
               ),
 
-            // Power-up unlocked message (centered)
             if (_showPowerUpMessage)
               Positioned.fill(
                 child: Center(
@@ -1533,7 +1471,6 @@ class _GameplayScreenState extends State<GameplayScreen>
                 ),
               ),
 
-            // Manual fire instruction with animation
             if (!widget.autoFire && _showInstruction)
               Positioned.fill(
                 child: Center(
@@ -1687,14 +1624,12 @@ class Boss extends Enemy {
       }
     }
 
-    // Vertical oscillation
     y += sin(DateTime.now().millisecondsSinceEpoch / 300) * 0.5;
   }
 
   void startAttacking(Function(double, double, double) fireLaser) {
     _attackTimer?.cancel();
     _attackTimer = Timer.periodic(const Duration(milliseconds: 1200), (timer) {
-      // Fire a laser at the player
       fireLaser(x, y + height / 2, 5.0);
     });
   }
@@ -1797,8 +1732,6 @@ class BossPainter extends CustomPainter {
     path.close();
 
     canvas.drawPath(path, bodyPaint);
-
-    // Draw boss eyes
     final eyePaint = Paint()..color = Colors.white;
     canvas.drawCircle(
       Offset(boss.x - boss.width / 5, boss.y),
@@ -1823,12 +1756,9 @@ class BossPainter extends CustomPainter {
       pupilPaint,
     );
 
-    // Draw boss health bar
     final healthBarWidth = boss.width * 1.2;
     final healthBarHeight = 10.0;
     final healthBarY = boss.y - boss.height / 2 - 20;
-
-    // Background of health bar
     final healthBgPaint =
         Paint()
           ..color = Colors.grey.withOpacity(0.7)
@@ -1843,8 +1773,6 @@ class BossPainter extends CustomPainter {
       ),
       healthBgPaint,
     );
-
-    // Actual health
     final healthPaint =
         Paint()
           ..color = Colors.red
@@ -1925,16 +1853,12 @@ class NukeShockwavePainter extends CustomPainter {
     if (radius <= 0 || opacity <= 0) return;
 
     final center = Offset(centerX, centerY);
-
-    // Draw multiple shockwave rings for more dramatic effect
     for (int i = 0; i < 3; i++) {
       final ringRadius = radius - (i * 50);
       if (ringRadius <= 0) continue;
 
       final ringOpacity = opacity * (1.0 - i * 0.3);
       if (ringOpacity <= 0) continue;
-
-      // Outer ring (orange/red)
       final outerPaint =
           Paint()
             ..color = (i == 0 ? Colors.orange : Colors.red).withOpacity(
@@ -1944,8 +1868,6 @@ class NukeShockwavePainter extends CustomPainter {
             ..strokeWidth = 15.0 - (i * 3);
 
       canvas.drawCircle(center, ringRadius, outerPaint);
-
-      // Inner ring (bright yellow/white)
       final innerPaint =
           Paint()
             ..color = (i == 0 ? Colors.yellow : Colors.orange).withOpacity(
@@ -1956,16 +1878,12 @@ class NukeShockwavePainter extends CustomPainter {
 
       canvas.drawCircle(center, ringRadius - 5, innerPaint);
     }
-
-    // Central bright core
     final corePaint =
         Paint()
           ..color = Colors.white.withOpacity(opacity * 0.9)
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 20);
 
     canvas.drawCircle(center, 30, corePaint);
-
-    // Fireball effect
     final fireballPaint =
         Paint()
           ..color = Colors.orange.withOpacity(opacity * 0.7)

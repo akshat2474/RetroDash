@@ -2,18 +2,17 @@ import 'package:flutter/material.dart';
 import 'animated_background.dart'; // Import the AnimatedBackground widget
 
 class PersonalBestPage extends StatelessWidget {
-  // Hard-coded top 10 scores
   final List<ScoreEntry> topScores = [
-    ScoreEntry(name: "ACE", score: 9850, date: "2025-05-15"),
-    ScoreEntry(name: "RKT", score: 8720, date: "2025-05-10"),
-    ScoreEntry(name: "ZAP", score: 7645, date: "2025-05-18"),
-    ScoreEntry(name: "MAX", score: 6980, date: "2025-05-01"),
-    ScoreEntry(name: "JET", score: 6540, date: "2025-04-28"),
-    ScoreEntry(name: "PRO", score: 5890, date: "2025-04-25"),
-    ScoreEntry(name: "WIN", score: 5430, date: "2025-05-12"),
-    ScoreEntry(name: "TOP", score: 4950, date: "2025-05-05"),
-    ScoreEntry(name: "STR", score: 4320, date: "2025-04-30"),
-    ScoreEntry(name: "NOV", score: 3760, date: "2025-04-22"),
+    ScoreEntry(name: "Akshat", score: 9850, date: "2025-05-15"),
+    ScoreEntry(name: "Ritika", score: 8720, date: "2025-05-10"),
+    ScoreEntry(name: "Abhay", score: 7645, date: "2025-05-18"),
+    ScoreEntry(name: "Amaan", score: 6980, date: "2025-05-01"),
+    ScoreEntry(name: "Anant", score: 6540, date: "2025-04-28"),
+    ScoreEntry(name: "Divyansh", score: 5890, date: "2025-04-25"),
+    ScoreEntry(name: "Amogh", score: 5430, date: "2025-05-12"),
+    ScoreEntry(name: "Aadyanh", score: 4950, date: "2025-05-05"),
+    ScoreEntry(name: "Adamya", score: 4320, date: "2025-04-30"),
+    ScoreEntry(name: "Abhoydya", score: 3760, date: "2025-04-22"),
   ];
 
   @override
