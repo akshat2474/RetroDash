@@ -39,10 +39,12 @@ class GameScreen extends StatefulWidget {
 
 class _GameScreenState extends State<GameScreen> {
   bool _gameStarted = false;
+  bool _autoFireMode = true; // Track game mode
 
-  void _startGame() {
+  void _startGame(bool autoFire) {
     setState(() {
       _gameStarted = true;
+      _autoFireMode = autoFire;
     });
   }
 
@@ -61,7 +63,7 @@ class _GameScreenState extends State<GameScreen> {
       ],
       child: SafeArea(
         child: _gameStarted
-            ? const GameplayScreen()
+            ? GameplayScreen(autoFire: _autoFireMode)
             : StartScreen(onStart: _startGame),
       ),
     );
@@ -69,7 +71,7 @@ class _GameScreenState extends State<GameScreen> {
 }
 
 class StartScreen extends StatelessWidget {
-  final VoidCallback onStart;
+  final Function(bool) onStart;
 
   const StartScreen({super.key, required this.onStart});
 
@@ -96,7 +98,7 @@ class StartScreen extends StatelessWidget {
           ),
           const SizedBox(height: 60),
           ElevatedButton(
-            onPressed: onStart,
+            onPressed: () => onStart(true),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.cyanAccent.withOpacity(0.2),
               foregroundColor: Colors.white,
@@ -114,19 +116,19 @@ class StartScreen extends StatelessWidget {
           ),
           const SizedBox(height: 30),
           ElevatedButton(
-            onPressed: onStart,
+            onPressed: () => onStart(false),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.cyanAccent.withOpacity(0.2),
+              backgroundColor: Colors.orangeAccent.withOpacity(0.2),
               foregroundColor: Colors.white,
               elevation: 8,
               padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(30),
-                side: const BorderSide(color: Colors.cyanAccent, width: 2),
+                side: const BorderSide(color: Colors.orangeAccent, width: 2),
               ),
             ),
             child: const Text(
-              'HARD MODE',
+              'MANUAL FIRE',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ),
@@ -136,35 +138,106 @@ class StartScreen extends StatelessWidget {
   }
 }
 
+class PowerUp {
+  final String type;
+  double x;
+  double y;
+  double width;
+  double height;
+  double speed;
+  int timeToLive;
+  
+  PowerUp({
+    required this.type,
+    required this.x,
+    required this.y,
+    required this.width,
+    required this.height,
+    required this.speed,
+    required this.timeToLive,
+  });
+}
+
 class GameplayScreen extends StatefulWidget {
-  const GameplayScreen({super.key});
+  final bool autoFire;
+  
+  const GameplayScreen({super.key, required this.autoFire});
 
   @override
   State<GameplayScreen> createState() => _GameplayScreenState();
 }
 
-class _GameplayScreenState extends State<GameplayScreen> {
+class _GameplayScreenState extends State<GameplayScreen> with TickerProviderStateMixin {
   late final Player _player;
   final List<Enemy> _enemies = [];
   final List<Projectile> _projectiles = [];
   final List<Explosion> _explosions = [];
+  final List<PowerUp> _powerUps = [];
   
   Timer? _gameTimer;
   Timer? _enemySpawnTimer;
   Timer? _projectileTimer;
+  Timer? _instructionTimer;
   int score = 0;
-  int lives = 3; // Add lives system
+  int lives = 3;
   bool _gameOver = false;
   final Random _random = Random();
   
+  // Power-up states
+  bool _rapidFireActive = false;
+  Timer? _rapidFireTimer;
+  bool _hasBigExplosion = false;
+  
+  // Fire rate variables
+  int _baseFireRate = 400; // milliseconds
+  int get _currentFireRate => _rapidFireActive ? (_baseFireRate ~/ 2) : _baseFireRate;
+  
   double _playerX = 0.5; 
+  bool _isDragging = false; // Track if user is dragging
 
   final GameAudio _gameAudio = GameAudio();
   bool _audioInitialized = false;
+  
+  // Animation controller for tap instruction
+  late AnimationController _instructionAnimationController;
+  late Animation<double> _instructionOpacity;
+  bool _showInstruction = false;
+
+  // Power-up animation controllers
+  late AnimationController _powerUpAnimationController;
+  late Animation<double> _powerUpPulse;
 
   @override
   void initState() {
     super.initState();
+    
+    // Initialize animation controllers
+    _instructionAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+    
+    _instructionOpacity = Tween<double>(
+      begin: 1.0,
+      end: 0.0,
+    ).animate(CurvedAnimation(
+      parent: _instructionAnimationController,
+      curve: Curves.easeOut,
+    ));
+    
+    _powerUpAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    )..repeat(reverse: true);
+    
+    _powerUpPulse = Tween<double>(
+      begin: 0.8,
+      end: 1.2,
+    ).animate(CurvedAnimation(
+      parent: _powerUpAnimationController,
+      curve: Curves.easeInOut,
+    ));
+    
     _initializeGame();
   }
 
@@ -214,16 +287,45 @@ class _GameplayScreenState extends State<GameplayScreen> {
       _spawnEnemy();
     });
     
-    _projectileTimer = Timer.periodic(const Duration(milliseconds: 400), (timer) {
-      _fireProjectile();
-    });
+    // Only start auto-fire timer if in auto-fire mode
+    if (widget.autoFire) {
+      _projectileTimer = Timer.periodic(Duration(milliseconds: _currentFireRate), (timer) {
+        _fireProjectile();
+      });
+    } else {
+      // Show instruction for manual fire mode
+      setState(() {
+        _showInstruction = true;
+      });
+      
+      // Start fade out animation after 3.5 seconds, complete fade by 5 seconds
+      _instructionTimer = Timer(const Duration(milliseconds: 3500), () {
+        if (mounted) {
+          _instructionAnimationController.forward().then((_) {
+            if (mounted) {
+              setState(() {
+                _showInstruction = false;
+              });
+            }
+          });
+        }
+      });
+    }
+  }
+
+  void _updateFireRate() {
+    if (widget.autoFire && _projectileTimer != null) {
+      _projectileTimer!.cancel();
+      _projectileTimer = Timer.periodic(Duration(milliseconds: _currentFireRate), (timer) {
+        _fireProjectile();
+      });
+    }
   }
 
   void _spawnEnemy() {
     if (_gameOver) return;
     
     final size = MediaQuery.of(context).size;
-    // Spawn enemies only in 90% of screen width (5% margin on each side)
     final spawnAreaWidth = size.width * 0.9;
     final spawnAreaStart = size.width * 0.05;
     
@@ -238,6 +340,22 @@ class _GameplayScreenState extends State<GameplayScreen> {
     
     setState(() {
       _enemies.add(enemy);
+    });
+  }
+
+  void _spawnPowerUp(String type, double x, double y) {
+    final powerUp = PowerUp(
+      type: type,
+      x: x,
+      y: y,
+      width: 30,
+      height: 30,
+      speed: 2,
+      timeToLive: 300, // 5 seconds at 60fps
+    );
+    
+    setState(() {
+      _powerUps.add(powerUp);
     });
   }
 
@@ -261,6 +379,50 @@ class _GameplayScreenState extends State<GameplayScreen> {
     });
   }
 
+  void _onScreenTap(TapDownDetails details) {
+    // Only fire manually if not in auto-fire mode and not dragging
+    if (!widget.autoFire && !_isDragging) {
+      _fireProjectile();
+    }
+  }
+
+  void _activateRapidFire() {
+    setState(() {
+      _rapidFireActive = true;
+    });
+    
+    _updateFireRate();
+    
+    _rapidFireTimer?.cancel();
+    _rapidFireTimer = Timer(const Duration(seconds: 10), () {
+      setState(() {
+        _rapidFireActive = false;
+      });
+      _updateFireRate();
+    });
+  }
+
+  void _activateBigExplosion() {
+    // Create massive explosion effect
+    for (final enemy in _enemies) {
+      _addExplosion(enemy.x, enemy.y);
+      score += 10; // Give points for each destroyed enemy
+    }
+    
+    // Add central explosion
+    final size = MediaQuery.of(context).size;
+    _addExplosion(size.width / 2, size.height / 2);
+    
+    if (_audioInitialized) {
+      _gameAudio.playExplosionSound();
+    }
+    
+    setState(() {
+      _enemies.clear();
+      _hasBigExplosion = false; // Reset for next time
+    });
+  }
+
   void _loseLife() {
     setState(() {
       lives--;
@@ -278,6 +440,7 @@ class _GameplayScreenState extends State<GameplayScreen> {
     setState(() {
       _player.x = MediaQuery.of(context).size.width * _playerX;
     
+      // Update projectiles
       for (int i = _projectiles.length - 1; i >= 0; i--) {
         _projectiles[i].y -= _projectiles[i].speed;
         
@@ -286,18 +449,39 @@ class _GameplayScreenState extends State<GameplayScreen> {
         }
       }
       
-      final size = MediaQuery.of(context).size;
-      for (int i = _enemies.length - 1; i >= 0; i--) {
-        _enemies[i].y += _enemies[i].speed;
+      // Update power-ups
+      for (int i = _powerUps.length - 1; i >= 0; i--) {
+        _powerUps[i].y += _powerUps[i].speed;
+        _powerUps[i].timeToLive--;
         
-        // Check if enemy fell out of screen (missed by player)
-        if (_enemies[i].y > size.height + 50) {
-          _enemies.removeAt(i);
-          _loseLife(); // Lose life when enemy is missed
+        // Remove if off screen or expired
+        if (_powerUps[i].y > MediaQuery.of(context).size.height + 50 || _powerUps[i].timeToLive <= 0) {
+          _powerUps.removeAt(i);
           continue;
         }
         
         // Check collision with player
+        if (_checkCollision(_player, _powerUps[i])) {
+          if (_powerUps[i].type == 'rapid_fire') {
+            _activateRapidFire();
+          } else if (_powerUps[i].type == 'big_explosion') {
+            _activateBigExplosion();
+          }
+          _powerUps.removeAt(i);
+          continue;
+        }
+      }
+      
+      final size = MediaQuery.of(context).size;
+      for (int i = _enemies.length - 1; i >= 0; i--) {
+        _enemies[i].y += _enemies[i].speed;
+        
+        if (_enemies[i].y > size.height + 50) {
+          _enemies.removeAt(i);
+          _loseLife();
+          continue;
+        }
+        
         if (_checkCollision(_player, _enemies[i])) {
           _addExplosion(_player.x, _player.y);
           
@@ -306,11 +490,10 @@ class _GameplayScreenState extends State<GameplayScreen> {
           }
           
           _enemies.removeAt(i);
-          _loseLife(); // Lose life when hit by enemy
+          _loseLife();
           continue;
         }
         
-        // Check collision with projectiles
         for (int j = _projectiles.length - 1; j >= 0; j--) {
           if (_checkCollision(_projectiles[j], _enemies[i])) {
             _enemies[i].health--;
@@ -323,15 +506,25 @@ class _GameplayScreenState extends State<GameplayScreen> {
                 _gameAudio.playExplosionSound();
               }
               
+              final enemyX = _enemies[i].x;
+              final enemyY = _enemies[i].y;
+              
               score += 10;
               _enemies.removeAt(i);
+              
+              // Check for power-up spawns
+              if (score == 50 && !_rapidFireActive) {
+                _spawnPowerUp('rapid_fire', enemyX, enemyY);
+              } else if (score >= 200 && !_hasBigExplosion && score % 200 == 0) {
+                _hasBigExplosion = true;
+                _spawnPowerUp('big_explosion', enemyX, enemyY);
+              }
             }
             break;
           }
         }
       }
       
-      // Update explosions
       for (int i = _explosions.length - 1; i >= 0; i--) {
         _explosions[i].timeToLive--;
         if (_explosions[i].timeToLive <= 0) {
@@ -341,11 +534,24 @@ class _GameplayScreenState extends State<GameplayScreen> {
     });
   }
   
-  bool _checkCollision(GameObject a, GameObject b) {
-    return (a.x < b.x + b.width &&
-        a.x + a.width > b.x &&
-        a.y < b.y + b.height &&
-        a.y + a.height > b.y);
+  bool _checkCollision(dynamic a, dynamic b) {
+    // Increased hitbox multiplier for better collision detection
+    double hitboxMultiplier = 1.5;
+    
+    double aLeft = a.x - (a.width * hitboxMultiplier) / 2;
+    double aRight = a.x + (a.width * hitboxMultiplier) / 2;
+    double aTop = a.y - (a.height * hitboxMultiplier) / 2;
+    double aBottom = a.y + (a.height * hitboxMultiplier) / 2;
+    
+    double bLeft = b.x - (b.width * hitboxMultiplier) / 2;
+    double bRight = b.x + (b.width * hitboxMultiplier) / 2;
+    double bTop = b.y - (b.height * hitboxMultiplier) / 2;
+    double bBottom = b.y + (b.height * hitboxMultiplier) / 2;
+    
+    return (aLeft < bRight &&
+        aRight > bLeft &&
+        aTop < bBottom &&
+        aBottom > bTop);
   }
   
   void _addExplosion(double x, double y) {
@@ -358,6 +564,7 @@ class _GameplayScreenState extends State<GameplayScreen> {
     _gameTimer?.cancel();
     _enemySpawnTimer?.cancel();
     _projectileTimer?.cancel();
+    _rapidFireTimer?.cancel();
     
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
@@ -466,6 +673,14 @@ class _GameplayScreenState extends State<GameplayScreen> {
                   ),
                 ],
               ),
+              const SizedBox(height: 10),
+              Text(
+                'Mode: ${widget.autoFire ? "AUTO FIRE" : "MANUAL FIRE"}',
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Colors.white60,
+                ),
+              ),
               const SizedBox(height: 30),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -527,6 +742,10 @@ class _GameplayScreenState extends State<GameplayScreen> {
     _gameTimer?.cancel();
     _enemySpawnTimer?.cancel();
     _projectileTimer?.cancel();
+    _instructionTimer?.cancel();
+    _rapidFireTimer?.cancel();
+    _instructionAnimationController.dispose();
+    _powerUpAnimationController.dispose();
     _gameAudio.dispose();
     super.dispose();
   }
@@ -534,27 +753,61 @@ class _GameplayScreenState extends State<GameplayScreen> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      onHorizontalDragStart: (details) {
+        _isDragging = true;
+      },
       onHorizontalDragUpdate: (details) {
         setState(() {
           final screenWidth = MediaQuery.of(context).size.width;
           _playerX += details.delta.dx / screenWidth;
-          
           _playerX = _playerX.clamp(0.05, 0.95);
         });
       },
+      onHorizontalDragEnd: (details) {
+        _isDragging = false;
+      },
+      onTapDown: _onScreenTap, // Changed to onTapDown for better responsiveness
       child: Stack(
         children: [
           // Score display
           Positioned(
             top: 20,
             left: 20,
-            child: Text(
-              'SCORE: $score',
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'SCORE: $score',
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                Text(
+                  widget.autoFire ? 'AUTO FIRE' : 'MANUAL FIRE',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: widget.autoFire ? Colors.cyanAccent : Colors.orangeAccent,
+                  ),
+                ),
+                if (_rapidFireActive)
+                  Text(
+                    'RAPID FIRE!',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.yellowAccent,
+                      shadows: [
+                        Shadow(
+                          color: Colors.yellowAccent.withOpacity(0.8),
+                          blurRadius: 10,
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
             ),
           ),
           
@@ -594,6 +847,84 @@ class _GameplayScreenState extends State<GameplayScreen> {
             ),
           ),
           
+          // Manual fire instruction with animation
+          if (!widget.autoFire && _showInstruction)
+            Positioned.fill(
+              child: Center(
+                child: AnimatedBuilder(
+                  animation: _instructionOpacity,
+                  builder: (context, child) {
+                    return Opacity(
+                      opacity: _instructionOpacity.value,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.orangeAccent.withOpacity(0.8),
+                            width: 2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.orangeAccent.withOpacity(0.3),
+                              blurRadius: 20,
+                              spreadRadius: 5,
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'TAP TO SHOOT',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 32,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.orangeAccent,
+                                shadows: [
+                                  Shadow(
+                                    color: Colors.orangeAccent.withOpacity(0.8),
+                                    blurRadius: 15,
+                                    offset: const Offset(0, 0),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              'DRAG TO MOVE',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.cyanAccent,
+                                shadows: [
+                                  Shadow(
+                                    color: Colors.cyanAccent.withOpacity(0.8),
+                                    blurRadius: 15,
+                                    offset: const Offset(0, 0),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            const Icon(
+                              Icons.touch_app,
+                              color: Colors.orangeAccent,
+                              size: 48,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          
+          // Game objects
           CustomPaint(
             painter: PlayerPainter(_player),
             size: Size.infinite,
@@ -615,6 +946,21 @@ class _GameplayScreenState extends State<GameplayScreen> {
             CustomPaint(
               painter: ExplosionPainter(explosion),
               size: Size.infinite,
+            ),
+            
+          // Power-ups
+          for (final powerUp in _powerUps)
+            AnimatedBuilder(
+              animation: _powerUpPulse,
+              builder: (context, child) {
+                return Transform.scale(
+                  scale: _powerUpPulse.value,
+                  child: CustomPaint(
+                    painter: PowerUpPainter(powerUp),
+                    size: Size.infinite,
+                  ),
+                );
+              },
             ),
         ],
       ),
@@ -683,6 +1029,108 @@ class Explosion {
   });
 }
 
+class PowerUpPainter extends CustomPainter {
+  final PowerUp powerUp;
+  
+  PowerUpPainter(this.powerUp);
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    Color powerUpColor;
+    IconData icon;
+    
+    switch (powerUp.type) {
+      case 'rapid_fire':
+        powerUpColor = Colors.yellowAccent;
+        icon = Icons.flash_on;
+        break;
+      case 'big_explosion':
+        powerUpColor = Colors.redAccent;
+        icon = Icons.auto_awesome; // Changed from Icons.explosion to Icons.auto_awesome
+        break;
+      default:
+        powerUpColor = Colors.white;
+        icon = Icons.star;
+    }
+    
+    // Draw power-up background
+    final bgPaint = Paint()
+      ..color = powerUpColor.withOpacity(0.3)
+      ..style = PaintingStyle.fill;
+    
+    canvas.drawCircle(
+      Offset(powerUp.x, powerUp.y),
+      powerUp.width / 2,
+      bgPaint,
+    );
+    
+    // Draw power-up border
+    final borderPaint = Paint()
+      ..color = powerUpColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3;
+    
+    canvas.drawCircle(
+      Offset(powerUp.x, powerUp.y),
+      powerUp.width / 2,
+      borderPaint,
+    );
+    
+    // Draw glow effect
+    final glowPaint = Paint()
+      ..color = powerUpColor.withOpacity(0.5)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 15);
+    
+    canvas.drawCircle(
+      Offset(powerUp.x, powerUp.y),
+      powerUp.width / 3,
+      glowPaint,
+    );
+    
+    // Draw icon (simplified representation)
+    final iconPaint = Paint()
+      ..color = powerUpColor
+      ..style = PaintingStyle.fill;
+    
+    if (powerUp.type == 'rapid_fire') {
+      // Draw lightning bolt shape
+      final path = Path();
+      path.moveTo(powerUp.x - 8, powerUp.y - 10);
+      path.lineTo(powerUp.x + 2, powerUp.y - 2);
+      path.lineTo(powerUp.x - 2, powerUp.y - 2);
+      path.lineTo(powerUp.x + 8, powerUp.y + 10);
+      path.lineTo(powerUp.x - 2, powerUp.y + 2);
+      path.lineTo(powerUp.x + 2, powerUp.y + 2);
+      path.close();
+      canvas.drawPath(path, iconPaint);
+    } else if (powerUp.type == 'big_explosion') {
+      // Draw explosion shape
+      final center = Offset(powerUp.x, powerUp.y);
+      for (int i = 0; i < 8; i++) {
+        final angle = i * (2 * pi / 8);
+        final startRadius = 5.0;
+        final endRadius = 12.0;
+        final start = Offset(
+          center.dx + cos(angle) * startRadius,
+          center.dy + sin(angle) * startRadius,
+        );
+        final end = Offset(
+          center.dx + cos(angle) * endRadius,
+          center.dy + sin(angle) * endRadius,
+        );
+        canvas.drawLine(start, end, Paint()
+          ..color = powerUpColor
+          ..strokeWidth = 2
+          ..strokeCap = StrokeCap.round);
+      }
+      canvas.drawCircle(center, 3, iconPaint);
+    }
+  }
+  
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
 class PlayerPainter extends CustomPainter {
   final Player player;
   
@@ -719,7 +1167,6 @@ class PlayerPainter extends CustomPainter {
 
 class EnemyPainter extends CustomPainter {
   final Enemy enemy;
-  final Random _random = Random();
   
   EnemyPainter(this.enemy);
   
@@ -785,7 +1232,6 @@ class ProjectilePainter extends CustomPainter {
       ..color = Colors.cyanAccent
       ..style = PaintingStyle.fill;
       
-    // Draw laser bolt
     canvas.drawRect(
       Rect.fromLTWH(
         projectile.x - projectile.width / 2,
@@ -823,7 +1269,6 @@ class ExplosionPainter extends CustomPainter {
   
   @override
   void paint(Canvas canvas, Size size) {
-    // Create particles for explosion
     final int particleCount = 12;
     final radius = 10 + (20 - explosion.timeToLive);
     
@@ -863,4 +1308,3 @@ class ExplosionPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
-

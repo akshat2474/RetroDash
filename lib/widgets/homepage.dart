@@ -3,7 +3,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'animated_background.dart'; // Import the new background widget
 import 'profile.dart';
-import 'auto_shoot.dart';
+import 'space_blaster.dart';
 
 class AnimatedHomePage extends StatefulWidget {
   const AnimatedHomePage({super.key});
