@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'homepage.dart';
-import 'animated_background.dart'; // Import the AnimatedBackground widget
+import 'animated_background.dart'; 
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
