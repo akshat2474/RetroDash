@@ -1,39 +1,33 @@
-# Miscellaneous
-*.class
-*.log
-*.pyc
-*.swp
-.DS_Store
-.atom/
-.history
-.svn/
-.swiftpm/
-migrate_working_dir/
-
-# IntelliJ related
-*.iml
-*.ipr
-*.iws
-.idea/
-
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
+# Dart & Flutter
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
-/build/
+build/
 
-# Symbolication related
-app.*.symbols
+# iOS/Android specific
+**/ios/Flutter/.last_build_id
+android/app/debug
+android/app/profile
+android/app/release
 
-# Obfuscation related
-app.*.map.json
+# IDEs
+*.iml
+.idea/
+.vscode/
+*.log
+*.swp
+.DS_Store
 
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
+# Misc
+*.class
+*.pyc
+.atom/
+.history
+.svn/
+.swiftpm/
+
+# Vercel
 .vercel
+
