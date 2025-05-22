@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'personal_best.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'animated_background.dart'; // Import the new background widget
 import 'profile.dart';
@@ -261,17 +262,17 @@ class _AnimatedHomePageState extends State<AnimatedHomePage>
                             children: [
                               const SizedBox(height: 20),
                               _buildOptionButton(
-                                '  PLAY :)  ',
+                                '   PLAY :)   ',
                                 Colors.greenAccent,
                               ),
                               const SizedBox(height: 10),
                               _buildOptionButton(
-                                'LEADERBOARD',
+                                'PERSONAL BEST',
                                 Colors.amberAccent,
                               ),
                               const SizedBox(height: 10),
                               _buildOptionButton(
-                                '  PROFILE  ',
+                                '   PROFILE   ',
                                 Colors.blueAccent,
                               ),
                             ],
@@ -293,17 +294,21 @@ class _AnimatedHomePageState extends State<AnimatedHomePage>
   Widget _buildOptionButton(String text, Color color) {
     return GestureDetector(
       onTap: () {
-        if (text == '  PROFILE  ') {
+        if (text == '   PROFILE   ') {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => ProfilePage()),
           );
-        } else if (text == '  PLAY :)  ') {
+        } else if (text == '   PLAY :)   ') {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => SpaceBlasterApp()),
           );
-        } else if (text == 'LEADERBOARD') {
+        } else if (text == 'PERSONAL BEST') {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => PersonalBestPage()),
+          );
         }
       },
       child: Container(
