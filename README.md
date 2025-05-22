@@ -20,6 +20,25 @@
 
 ---
 
+Sure! Here's an updated version of your README with a **📸 Screenshots** section included. This section is placed after the **🎮 Controls** section and before **🤝 Contributing** for maximum visibility.
+
+You’ll need to add your actual screenshot image files to the `assets/images/` folder (or wherever you prefer) and link them accordingly.
+
+---
+
+## 📸 Screenshots
+
+Get a glimpse of the action before you play!
+
+<p align="center">
+  <img src="assets/images/home_page.jpg" alt="Gameplay Screenshot 1" width="300"/>
+  <img src="assets/images/boss_fight.jpg" alt="Gameplay Screenshot 2" width="300"/>
+</p>
+
+> 📷 Have cool gameplay moments? Share your screenshots in a GitHub issue or a pull request to feature them here!
+
+---.
+
 ## ✨ Features
 
 *  **Dynamic Enemy Waves**
