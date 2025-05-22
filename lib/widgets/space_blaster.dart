@@ -138,26 +138,6 @@ class StartScreen extends StatelessWidget {
   }
 }
 
-class PowerUp {
-  final String type;
-  double x;
-  double y;
-  double width;
-  double height;
-  double speed;
-  int timeToLive;
-  
-  PowerUp({
-    required this.type,
-    required this.x,
-    required this.y,
-    required this.width,
-    required this.height,
-    required this.speed,
-    required this.timeToLive,
-  });
-}
-
 class GameplayScreen extends StatefulWidget {
   final bool autoFire;
   
@@ -172,7 +152,6 @@ class _GameplayScreenState extends State<GameplayScreen> with TickerProviderStat
   final List<Enemy> _enemies = [];
   final List<Projectile> _projectiles = [];
   final List<Explosion> _explosions = [];
-  final List<PowerUp> _powerUps = [];
   
   Timer? _gameTimer;
   Timer? _enemySpawnTimer;
@@ -186,7 +165,8 @@ class _GameplayScreenState extends State<GameplayScreen> with TickerProviderStat
   // Power-up states
   bool _rapidFireActive = false;
   Timer? _rapidFireTimer;
-  bool _hasBigExplosion = false;
+  bool _hasRapidFirePowerUp = false;
+  bool _hasBigExplosionPowerUp = false;
   
   // Fire rate variables
   int _baseFireRate = 400; // milliseconds
@@ -206,6 +186,22 @@ class _GameplayScreenState extends State<GameplayScreen> with TickerProviderStat
   // Power-up animation controllers
   late AnimationController _powerUpAnimationController;
   late Animation<double> _powerUpPulse;
+
+  // Power-up message animation
+  late AnimationController _powerUpMessageController;
+  late Animation<double> _powerUpMessageOpacity;
+  late Animation<double> _powerUpMessageScale;
+  String _powerUpMessage = '';
+  bool _showPowerUpMessage = false;
+
+  // Nuclear explosion animation
+  late AnimationController _nukeAnimationController;
+  late Animation<double> _nukeFlashOpacity;
+  late Animation<double> _nukeShockwaveRadius;
+  late Animation<double> _nukeShockwaveOpacity;
+  late Animation<double> _screenShakeX;
+  late Animation<double> _screenShakeY;
+  bool _showNukeEffect = false;
 
   @override
   void initState() {
@@ -237,6 +233,68 @@ class _GameplayScreenState extends State<GameplayScreen> with TickerProviderStat
       parent: _powerUpAnimationController,
       curve: Curves.easeInOut,
     ));
+
+    // Power-up message animation
+    _powerUpMessageController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+
+    _powerUpMessageOpacity = Tween<double>(
+      begin: 1.0,
+      end: 0.0,
+    ).animate(CurvedAnimation(
+      parent: _powerUpMessageController,
+      curve: const Interval(0.5, 1.0, curve: Curves.easeOut),
+    ));
+
+    _powerUpMessageScale = Tween<double>(
+      begin: 0.5,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _powerUpMessageController,
+      curve: const Interval(0.0, 0.3, curve: Curves.elasticOut),
+    ));
+
+    // Nuclear explosion animation
+    _nukeAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 2000),
+      vsync: this,
+    );
+
+    _nukeFlashOpacity = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _nukeAnimationController,
+      curve: const Interval(0.0, 0.1, curve: Curves.easeOut),
+    ));
+
+    _nukeShockwaveRadius = Tween<double>(
+      begin: 0.0,
+      end: 1500.0,
+    ).animate(CurvedAnimation(
+      parent: _nukeAnimationController,
+      curve: const Interval(0.1, 0.8, curve: Curves.easeOut),
+    ));
+
+    _nukeShockwaveOpacity = Tween<double>(
+      begin: 0.8,
+      end: 0.0,
+    ).animate(CurvedAnimation(
+      parent: _nukeAnimationController,
+      curve: const Interval(0.1, 0.8, curve: Curves.easeOut),
+    ));
+
+    _screenShakeX = Tween<double>(
+      begin: 0.0,
+      end: 0.0,
+    ).animate(_nukeAnimationController);
+
+    _screenShakeY = Tween<double>(
+      begin: 0.0,
+      end: 0.0,
+    ).animate(_nukeAnimationController);
     
     _initializeGame();
   }
@@ -289,9 +347,7 @@ class _GameplayScreenState extends State<GameplayScreen> with TickerProviderStat
     
     // Only start auto-fire timer if in auto-fire mode
     if (widget.autoFire) {
-      _projectileTimer = Timer.periodic(Duration(milliseconds: _currentFireRate), (timer) {
-        _fireProjectile();
-      });
+      _startAutoFireTimer();
     } else {
       // Show instruction for manual fire mode
       setState(() {
@@ -313,12 +369,18 @@ class _GameplayScreenState extends State<GameplayScreen> with TickerProviderStat
     }
   }
 
-  void _updateFireRate() {
-    if (widget.autoFire && _projectileTimer != null) {
-      _projectileTimer!.cancel();
-      _projectileTimer = Timer.periodic(Duration(milliseconds: _currentFireRate), (timer) {
+  void _startAutoFireTimer() {
+    _projectileTimer?.cancel();
+    _projectileTimer = Timer.periodic(Duration(milliseconds: _currentFireRate), (timer) {
+      if (!_gameOver) {
         _fireProjectile();
-      });
+      }
+    });
+  }
+
+  void _updateFireRate() {
+    if (widget.autoFire) {
+      _startAutoFireTimer();
     }
   }
 
@@ -340,22 +402,6 @@ class _GameplayScreenState extends State<GameplayScreen> with TickerProviderStat
     
     setState(() {
       _enemies.add(enemy);
-    });
-  }
-
-  void _spawnPowerUp(String type, double x, double y) {
-    final powerUp = PowerUp(
-      type: type,
-      x: x,
-      y: y,
-      width: 30,
-      height: 30,
-      speed: 2,
-      timeToLive: 300, // 5 seconds at 60fps
-    );
-    
-    setState(() {
-      _powerUps.add(powerUp);
     });
   }
 
@@ -386,40 +432,146 @@ class _GameplayScreenState extends State<GameplayScreen> with TickerProviderStat
     }
   }
 
-  void _activateRapidFire() {
+  void _showPowerUpUnlockedMessage(String powerUpName) {
+    setState(() {
+      _powerUpMessage = '$powerUpName UNLOCKED!';
+      _showPowerUpMessage = true;
+    });
+
+    _powerUpMessageController.reset();
+    _powerUpMessageController.forward().then((_) {
+      if (mounted) {
+        setState(() {
+          _showPowerUpMessage = false;
+        });
+      }
+    });
+  }
+
+  void _useRapidFirePowerUp() {
+    if (!_hasRapidFirePowerUp || _rapidFireActive || _gameOver) return;
+    
+    debugPrint('Activating Rapid Fire power-up');
+    
     setState(() {
       _rapidFireActive = true;
+      _hasRapidFirePowerUp = false;
+    });
+    
+    // Show activation message
+    setState(() {
+      _powerUpMessage = 'RAPID FIRE ACTIVATED!';
+      _showPowerUpMessage = true;
+    });
+
+    _powerUpMessageController.reset();
+    _powerUpMessageController.forward().then((_) {
+      if (mounted) {
+        setState(() {
+          _showPowerUpMessage = false;
+        });
+      }
     });
     
     _updateFireRate();
     
     _rapidFireTimer?.cancel();
     _rapidFireTimer = Timer(const Duration(seconds: 10), () {
-      setState(() {
-        _rapidFireActive = false;
-      });
-      _updateFireRate();
+      if (mounted) {
+        setState(() {
+          _rapidFireActive = false;
+        });
+        _updateFireRate();
+      }
     });
   }
 
-  void _activateBigExplosion() {
-    // Create massive explosion effect
-    for (final enemy in _enemies) {
-      _addExplosion(enemy.x, enemy.y);
-      score += 10; // Give points for each destroyed enemy
-    }
+  void _useBigExplosionPowerUp() {
+    if (!_hasBigExplosionPowerUp || _gameOver) return;
     
-    // Add central explosion
-    final size = MediaQuery.of(context).size;
-    _addExplosion(size.width / 2, size.height / 2);
+    debugPrint('Activating Big Explosion power-up');
     
-    if (_audioInitialized) {
-      _gameAudio.playExplosionSound();
-    }
-    
+    // Start nuclear explosion animation
     setState(() {
-      _enemies.clear();
-      _hasBigExplosion = false; // Reset for next time
+      _showNukeEffect = true;
+    });
+
+    // Create random screen shake effect
+    final random = Random();
+    _screenShakeX = Tween<double>(
+      begin: -10.0 + random.nextDouble() * 20,
+      end: -5.0 + random.nextDouble() * 10,
+    ).animate(CurvedAnimation(
+      parent: _nukeAnimationController,
+      curve: const Interval(0.1, 0.6, curve: Curves.elasticOut),
+    ));
+
+    _screenShakeY = Tween<double>(
+      begin: -8.0 + random.nextDouble() * 16,
+      end: -4.0 + random.nextDouble() * 8,
+    ).animate(CurvedAnimation(
+      parent: _nukeAnimationController,
+      curve: const Interval(0.1, 0.6, curve: Curves.elasticOut),
+    ));
+
+    _nukeAnimationController.forward().then((_) {
+      if (mounted) {
+        setState(() {
+          _showNukeEffect = false;
+        });
+        _nukeAnimationController.reset();
+      }
+    });
+    
+    // Delay the actual destruction to sync with the shockwave
+    Timer(const Duration(milliseconds: 200), () {
+      if (!mounted) return;
+
+      // Show activation message
+      setState(() {
+        _powerUpMessage = 'NUCLEAR STRIKE!';
+        _showPowerUpMessage = true;
+      });
+
+      _powerUpMessageController.reset();
+      _powerUpMessageController.forward().then((_) {
+        if (mounted) {
+          setState(() {
+            _showPowerUpMessage = false;
+          });
+        }
+      });
+      
+      // Create massive explosion effects for each enemy
+      for (final enemy in _enemies) {
+        _addExplosion(enemy.x, enemy.y);
+        // Add extra explosions around each enemy for more dramatic effect
+        for (int i = 0; i < 3; i++) {
+          _addExplosion(
+            enemy.x + (Random().nextDouble() - 0.5) * 100,
+            enemy.y + (Random().nextDouble() - 0.5) * 100,
+          );
+        }
+        score += 10;
+      }
+      
+      // Add multiple central explosions
+      final size = MediaQuery.of(context).size;
+      for (int i = 0; i < 8; i++) {
+        _addExplosion(
+          size.width / 2 + (Random().nextDouble() - 0.5) * 200,
+          size.height / 2 + (Random().nextDouble() - 0.5) * 200,
+        );
+      }
+
+      if (_audioInitialized) {
+        _gameAudio.playExplosionSound();
+      }
+      
+      setState(() {
+        _enemies.clear();
+        _hasBigExplosionPowerUp = false;
+      });
     });
   }
 
@@ -446,29 +598,6 @@ class _GameplayScreenState extends State<GameplayScreen> with TickerProviderStat
         
         if (_projectiles[i].y < -50) {
           _projectiles.removeAt(i);
-        }
-      }
-      
-      // Update power-ups
-      for (int i = _powerUps.length - 1; i >= 0; i--) {
-        _powerUps[i].y += _powerUps[i].speed;
-        _powerUps[i].timeToLive--;
-        
-        // Remove if off screen or expired
-        if (_powerUps[i].y > MediaQuery.of(context).size.height + 50 || _powerUps[i].timeToLive <= 0) {
-          _powerUps.removeAt(i);
-          continue;
-        }
-        
-        // Check collision with player
-        if (_checkCollision(_player, _powerUps[i])) {
-          if (_powerUps[i].type == 'rapid_fire') {
-            _activateRapidFire();
-          } else if (_powerUps[i].type == 'big_explosion') {
-            _activateBigExplosion();
-          }
-          _powerUps.removeAt(i);
-          continue;
         }
       }
       
@@ -506,18 +635,54 @@ class _GameplayScreenState extends State<GameplayScreen> with TickerProviderStat
                 _gameAudio.playExplosionSound();
               }
               
-              final enemyX = _enemies[i].x;
-              final enemyY = _enemies[i].y;
-              
               score += 10;
               _enemies.removeAt(i);
               
-              // Check for power-up spawns
-              if (score == 50 && !_rapidFireActive) {
-                _spawnPowerUp('rapid_fire', enemyX, enemyY);
-              } else if (score >= 200 && !_hasBigExplosion && score % 200 == 0) {
-                _hasBigExplosion = true;
-                _spawnPowerUp('big_explosion', enemyX, enemyY);
+              // Check for power-up unlocks
+              if (widget.autoFire && !_hasRapidFirePowerUp && !_rapidFireActive) {
+                // Rapid Fire appears at 50, 150, 250, 350, etc. (every 100 points after 50)
+                int rapidFireInterval = 100;
+                int firstRapidFire = 50;
+                
+                // Check if we've reached a rapid fire milestone
+                bool shouldUnlockRapidFire = false;
+                if (score >= firstRapidFire) {
+                  // Calculate which milestone we should be at
+                  int expectedMilestone = firstRapidFire;
+                  while (expectedMilestone <= score) {
+                    if (score >= expectedMilestone && (score - 10) < expectedMilestone) {
+                      shouldUnlockRapidFire = true;
+                      break;
+                    }
+                    expectedMilestone += rapidFireInterval;
+                  }
+                }
+                
+                if (shouldUnlockRapidFire) {
+                  _hasRapidFirePowerUp = true;
+                  _showPowerUpUnlockedMessage('RAPID FIRE');
+                }
+              }
+              
+              // Big Explosion appears every 200 points (200, 400, 600, etc.)
+              if (!_hasBigExplosionPowerUp) {
+                int bigExplosionInterval = 200;
+                
+                // Check if we've reached a big explosion milestone
+                bool shouldUnlockBigExplosion = false;
+                int expectedMilestone = bigExplosionInterval;
+                while (expectedMilestone <= score) {
+                  if (score >= expectedMilestone && (score - 10) < expectedMilestone) {
+                    shouldUnlockBigExplosion = true;
+                    break;
+                  }
+                  expectedMilestone += bigExplosionInterval;
+                }
+                
+                if (shouldUnlockBigExplosion) {
+                  _hasBigExplosionPowerUp = true;
+                  _showPowerUpUnlockedMessage('BIG EXPLOSION');
+                }
               }
             }
             break;
@@ -746,176 +911,313 @@ class _GameplayScreenState extends State<GameplayScreen> with TickerProviderStat
     _rapidFireTimer?.cancel();
     _instructionAnimationController.dispose();
     _powerUpAnimationController.dispose();
+    _powerUpMessageController.dispose();
+    _nukeAnimationController.dispose();
     _gameAudio.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onHorizontalDragStart: (details) {
-        _isDragging = true;
-      },
-      onHorizontalDragUpdate: (details) {
-        setState(() {
-          final screenWidth = MediaQuery.of(context).size.width;
-          _playerX += details.delta.dx / screenWidth;
-          _playerX = _playerX.clamp(0.05, 0.95);
-        });
-      },
-      onHorizontalDragEnd: (details) {
-        _isDragging = false;
-      },
-      onTapDown: _onScreenTap, // Changed to onTapDown for better responsiveness
-      child: Stack(
-        children: [
-          // Score display
-          Positioned(
-            top: 20,
-            left: 20,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'SCORE: $score',
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                Text(
-                  widget.autoFire ? 'AUTO FIRE' : 'MANUAL FIRE',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: widget.autoFire ? Colors.cyanAccent : Colors.orangeAccent,
-                  ),
-                ),
-                if (_rapidFireActive)
-                  Text(
-                    'RAPID FIRE!',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.yellowAccent,
-                      shadows: [
-                        Shadow(
-                          color: Colors.yellowAccent.withOpacity(0.8),
-                          blurRadius: 10,
+    return Stack(
+      children: [
+        // Main game area with gesture detection and screen shake effect
+        AnimatedBuilder(
+          animation: _nukeAnimationController,
+          builder: (context, child) {
+            return Transform.translate(
+              offset: Offset(_screenShakeX.value, _screenShakeY.value),
+              child: Positioned.fill(
+                child: GestureDetector(
+                  onHorizontalDragStart: (details) {
+                    _isDragging = true;
+                  },
+                  onHorizontalDragUpdate: (details) {
+                    setState(() {
+                      final screenWidth = MediaQuery.of(context).size.width;
+                      _playerX += details.delta.dx / screenWidth;
+                      _playerX = _playerX.clamp(0.05, 0.95);
+                    });
+                  },
+                  onHorizontalDragEnd: (details) {
+                    _isDragging = false;
+                  },
+                  onTapDown: _onScreenTap,
+                  child: Container(
+                    color: Colors.transparent,
+                    child: Stack(
+                      children: [
+                        // Game objects
+                        CustomPaint(
+                          painter: PlayerPainter(_player),
+                          size: Size.infinite,
                         ),
+                      
+                        for (final enemy in _enemies)
+                          CustomPaint(
+                            painter: EnemyPainter(enemy),
+                            size: Size.infinite,
+                          ),
+                        
+                        for (final projectile in _projectiles)
+                          CustomPaint(
+                            painter: ProjectilePainter(projectile),
+                            size: Size.infinite,
+                          ),
+                          
+                        for (final explosion in _explosions)
+                          CustomPaint(
+                            painter: ExplosionPainter(explosion),
+                            size: Size.infinite,
+                          ),
                       ],
                     ),
                   ),
-              ],
-            ),
+                ),
+              ),
+            );
+          },
+        ),
+
+        // Nuclear explosion effect
+        if (_showNukeEffect)
+          AnimatedBuilder(
+            animation: _nukeAnimationController,
+            builder: (context, child) {
+              return Stack(
+                children: [
+                  // Bright flash effect
+                  if (_nukeFlashOpacity.value > 0)
+                    Positioned.fill(
+                      child: Container(
+                        color: Colors.white.withOpacity(_nukeFlashOpacity.value * 0.9),
+                      ),
+                    ),
+                  
+                  // Shockwave effect
+                  if (_nukeShockwaveRadius.value > 0)
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: NukeShockwavePainter(
+                          radius: _nukeShockwaveRadius.value,
+                          opacity: _nukeShockwaveOpacity.value,
+                          centerX: MediaQuery.of(context).size.width / 2,
+                          centerY: MediaQuery.of(context).size.height / 2,
+                        ),
+                        size: Size.infinite,
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
-          
-          // Lives display
-          Positioned(
-            top: 20,
-            right: 20,
-            child: Row(
-              children: [
-                const Text(
-                  'LIVES: ',
+        
+        // Score display
+        Positioned(
+          top: 20,
+          left: 20,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'SCORE: $score',
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              Text(
+                widget.autoFire ? 'AUTO FIRE' : 'MANUAL FIRE',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: widget.autoFire ? Colors.cyanAccent : Colors.orangeAccent,
+                ),
+              ),
+              if (_rapidFireActive)
+                Text(
+                  'RAPID FIRE!',
                   style: TextStyle(
-                    fontSize: 20,
+                    fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: Colors.yellowAccent,
+                    shadows: [
+                      Shadow(
+                        color: Colors.yellowAccent.withOpacity(0.8),
+                        blurRadius: 10,
+                      ),
+                    ],
                   ),
                 ),
-                for (int i = 0; i < lives; i++)
-                  Container(
-                    margin: const EdgeInsets.only(left: 5),
-                    child: const Icon(
-                      Icons.favorite,
-                      color: Colors.red,
-                      size: 24,
+            ],
+          ),
+        ),
+        
+        // Lives display
+        Positioned(
+          top: 20,
+          right: 20,
+          child: Row(
+            children: [
+              const Text(
+                'LIVES: ',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              for (int i = 0; i < lives; i++)
+                Container(
+                  margin: const EdgeInsets.only(left: 5),
+                  child: const Icon(
+                    Icons.favorite,
+                    color: Colors.red,
+                    size: 24,
+                  ),
+                ),
+              for (int i = lives; i < 3; i++)
+                Container(
+                  margin: const EdgeInsets.only(left: 5),
+                  child: const Icon(
+                    Icons.favorite_border,
+                    color: Colors.grey,
+                    size: 24,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        
+        // Power-up buttons - positioned outside of main gesture detector
+        if (widget.autoFire && (_hasRapidFirePowerUp || _hasBigExplosionPowerUp))
+          Positioned(
+            top: 100,
+            right: 20,
+            child: Column(
+              children: [
+                if (_hasRapidFirePowerUp)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          debugPrint('Rapid Fire button tapped');
+                          _useRapidFirePowerUp();
+                        },
+                        borderRadius: BorderRadius.circular(20),
+                        child: AnimatedBuilder(
+                          animation: _powerUpPulse,
+                          builder: (context, child) {
+                            return Transform.scale(
+                              scale: _powerUpPulse.value,
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.yellowAccent.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: Colors.yellowAccent, width: 2),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.yellowAccent.withOpacity(0.3),
+                                      blurRadius: 10,
+                                      spreadRadius: 2,
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.flash_on,
+                                  color: Colors.yellowAccent,
+                                  size: 30,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                     ),
                   ),
-                for (int i = lives; i < 3; i++)
-                  Container(
-                    margin: const EdgeInsets.only(left: 5),
-                    child: const Icon(
-                      Icons.favorite_border,
-                      color: Colors.grey,
-                      size: 24,
+                if (_hasBigExplosionPowerUp)
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        debugPrint('Big Explosion button tapped');
+                        _useBigExplosionPowerUp();
+                      },
+                      borderRadius: BorderRadius.circular(20),
+                      child: AnimatedBuilder(
+                        animation: _powerUpPulse,
+                        builder: (context, child) {
+                          return Transform.scale(
+                            scale: _powerUpPulse.value,
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.redAccent.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: Colors.redAccent, width: 2),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.redAccent.withOpacity(0.3),
+                                    blurRadius: 10,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.auto_awesome,
+                                color: Colors.redAccent,
+                                size: 30,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     ),
                   ),
               ],
             ),
           ),
-          
-          // Manual fire instruction with animation
-          if (!widget.autoFire && _showInstruction)
-            Positioned.fill(
-              child: Center(
+        
+        // Big explosion button for manual mode (only big explosion)
+        if (!widget.autoFire && _hasBigExplosionPowerUp)
+          Positioned(
+            top: 100,
+            right: 20,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  debugPrint('Big Explosion button tapped (manual mode)');
+                  _useBigExplosionPowerUp();
+                },
+                borderRadius: BorderRadius.circular(20),
                 child: AnimatedBuilder(
-                  animation: _instructionOpacity,
+                  animation: _powerUpPulse,
                   builder: (context, child) {
-                    return Opacity(
-                      opacity: _instructionOpacity.value,
+                    return Transform.scale(
+                      scale: _powerUpPulse.value,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                        padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.7),
+                          color: Colors.redAccent.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.orangeAccent.withOpacity(0.8),
-                            width: 2,
-                          ),
+                          border: Border.all(color: Colors.redAccent, width: 2),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.orangeAccent.withOpacity(0.3),
-                              blurRadius: 20,
-                              spreadRadius: 5,
+                              color: Colors.redAccent.withOpacity(0.3),
+                              blurRadius: 10,
+                              spreadRadius: 2,
                             ),
                           ],
                         ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'TAP TO SHOOT',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 32,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.orangeAccent,
-                                shadows: [
-                                  Shadow(
-                                    color: Colors.orangeAccent.withOpacity(0.8),
-                                    blurRadius: 15,
-                                    offset: const Offset(0, 0),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Text(
-                              'DRAG TO MOVE',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.cyanAccent,
-                                shadows: [
-                                  Shadow(
-                                    color: Colors.cyanAccent.withOpacity(0.8),
-                                    blurRadius: 15,
-                                    offset: const Offset(0, 0),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            const Icon(
-                              Icons.touch_app,
-                              color: Colors.orangeAccent,
-                              size: 48,
-                            ),
-                          ],
+                        child: const Icon(
+                          Icons.auto_awesome,
+                          color: Colors.redAccent,
+                          size: 30,
                         ),
                       ),
                     );
@@ -923,47 +1225,142 @@ class _GameplayScreenState extends State<GameplayScreen> with TickerProviderStat
                 ),
               ),
             ),
-          
-          // Game objects
-          CustomPaint(
-            painter: PlayerPainter(_player),
-            size: Size.infinite,
           ),
         
-          for (final enemy in _enemies)
-            CustomPaint(
-              painter: EnemyPainter(enemy),
-              size: Size.infinite,
+        // Power-up unlocked message (centered)
+        if (_showPowerUpMessage)
+          Positioned.fill(
+            child: Center(
+              child: AnimatedBuilder(
+                animation: _powerUpMessageController,
+                builder: (context, child) {
+                  return Transform.scale(
+                    scale: _powerUpMessageScale.value,
+                    child: Opacity(
+                      opacity: _powerUpMessageOpacity.value,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.amber.withOpacity(0.9),
+                              Colors.orange.withOpacity(0.9),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.amber,
+                            width: 3,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.amber.withOpacity(0.5),
+                              blurRadius: 20,
+                              spreadRadius: 5,
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          _powerUpMessage,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black,
+                                blurRadius: 5,
+                                offset: Offset(2, 2),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
             ),
-          
-          for (final projectile in _projectiles)
-            CustomPaint(
-              painter: ProjectilePainter(projectile),
-              size: Size.infinite,
+          ),
+        
+        // Manual fire instruction with animation
+        if (!widget.autoFire && _showInstruction)
+          Positioned.fill(
+            child: Center(
+              child: AnimatedBuilder(
+                animation: _instructionOpacity,
+                builder: (context, child) {
+                  return Opacity(
+                    opacity: _instructionOpacity.value,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Colors.orangeAccent.withOpacity(0.8),
+                          width: 2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.orangeAccent.withOpacity(0.3),
+                            blurRadius: 20,
+                            spreadRadius: 5,
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'TAP TO SHOOT',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orangeAccent,
+                              shadows: [
+                                Shadow(
+                                  color: Colors.orangeAccent.withOpacity(0.8),
+                                  blurRadius: 15,
+                                  offset: const Offset(0, 0),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            'DRAG TO MOVE',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.cyanAccent,
+                              shadows: [
+                                Shadow(
+                                  color: Colors.cyanAccent.withOpacity(0.8),
+                                  blurRadius: 15,
+                                  offset: const Offset(0, 0),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          const Icon(
+                            Icons.touch_app,
+                            color: Colors.orangeAccent,
+                            size: 48,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
             ),
-            
-          for (final explosion in _explosions)
-            CustomPaint(
-              painter: ExplosionPainter(explosion),
-              size: Size.infinite,
-            ),
-            
-          // Power-ups
-          for (final powerUp in _powerUps)
-            AnimatedBuilder(
-              animation: _powerUpPulse,
-              builder: (context, child) {
-                return Transform.scale(
-                  scale: _powerUpPulse.value,
-                  child: CustomPaint(
-                    painter: PowerUpPainter(powerUp),
-                    size: Size.infinite,
-                  ),
-                );
-              },
-            ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 }
@@ -1029,108 +1426,6 @@ class Explosion {
   });
 }
 
-class PowerUpPainter extends CustomPainter {
-  final PowerUp powerUp;
-  
-  PowerUpPainter(this.powerUp);
-  
-  @override
-  void paint(Canvas canvas, Size size) {
-    Color powerUpColor;
-    IconData icon;
-    
-    switch (powerUp.type) {
-      case 'rapid_fire':
-        powerUpColor = Colors.yellowAccent;
-        icon = Icons.flash_on;
-        break;
-      case 'big_explosion':
-        powerUpColor = Colors.redAccent;
-        icon = Icons.auto_awesome; // Changed from Icons.explosion to Icons.auto_awesome
-        break;
-      default:
-        powerUpColor = Colors.white;
-        icon = Icons.star;
-    }
-    
-    // Draw power-up background
-    final bgPaint = Paint()
-      ..color = powerUpColor.withOpacity(0.3)
-      ..style = PaintingStyle.fill;
-    
-    canvas.drawCircle(
-      Offset(powerUp.x, powerUp.y),
-      powerUp.width / 2,
-      bgPaint,
-    );
-    
-    // Draw power-up border
-    final borderPaint = Paint()
-      ..color = powerUpColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3;
-    
-    canvas.drawCircle(
-      Offset(powerUp.x, powerUp.y),
-      powerUp.width / 2,
-      borderPaint,
-    );
-    
-    // Draw glow effect
-    final glowPaint = Paint()
-      ..color = powerUpColor.withOpacity(0.5)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 15);
-    
-    canvas.drawCircle(
-      Offset(powerUp.x, powerUp.y),
-      powerUp.width / 3,
-      glowPaint,
-    );
-    
-    // Draw icon (simplified representation)
-    final iconPaint = Paint()
-      ..color = powerUpColor
-      ..style = PaintingStyle.fill;
-    
-    if (powerUp.type == 'rapid_fire') {
-      // Draw lightning bolt shape
-      final path = Path();
-      path.moveTo(powerUp.x - 8, powerUp.y - 10);
-      path.lineTo(powerUp.x + 2, powerUp.y - 2);
-      path.lineTo(powerUp.x - 2, powerUp.y - 2);
-      path.lineTo(powerUp.x + 8, powerUp.y + 10);
-      path.lineTo(powerUp.x - 2, powerUp.y + 2);
-      path.lineTo(powerUp.x + 2, powerUp.y + 2);
-      path.close();
-      canvas.drawPath(path, iconPaint);
-    } else if (powerUp.type == 'big_explosion') {
-      // Draw explosion shape
-      final center = Offset(powerUp.x, powerUp.y);
-      for (int i = 0; i < 8; i++) {
-        final angle = i * (2 * pi / 8);
-        final startRadius = 5.0;
-        final endRadius = 12.0;
-        final start = Offset(
-          center.dx + cos(angle) * startRadius,
-          center.dy + sin(angle) * startRadius,
-        );
-        final end = Offset(
-          center.dx + cos(angle) * endRadius,
-          center.dy + sin(angle) * endRadius,
-        );
-        canvas.drawLine(start, end, Paint()
-          ..color = powerUpColor
-          ..strokeWidth = 2
-          ..strokeCap = StrokeCap.round);
-      }
-      canvas.drawCircle(center, 3, iconPaint);
-    }
-  }
-  
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
-}
-
 class PlayerPainter extends CustomPainter {
   final Player player;
   
@@ -1159,6 +1454,69 @@ class PlayerPainter extends CustomPainter {
       player.width / 4,
       glowPaint,
     );
+  }
+  
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+class NukeShockwavePainter extends CustomPainter {
+  final double radius;
+  final double opacity;
+  final double centerX;
+  final double centerY;
+  
+  NukeShockwavePainter({
+    required this.radius,
+    required this.opacity,
+    required this.centerX,
+    required this.centerY,
+  });
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (radius <= 0 || opacity <= 0) return;
+    
+    final center = Offset(centerX, centerY);
+    
+    // Draw multiple shockwave rings for more dramatic effect
+    for (int i = 0; i < 3; i++) {
+      final ringRadius = radius - (i * 50);
+      if (ringRadius <= 0) continue;
+      
+      final ringOpacity = opacity * (1.0 - i * 0.3);
+      if (ringOpacity <= 0) continue;
+      
+      // Outer ring (orange/red)
+      final outerPaint = Paint()
+        ..color = (i == 0 ? Colors.orange : Colors.red).withOpacity(ringOpacity * 0.6)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 15.0 - (i * 3);
+      
+      canvas.drawCircle(center, ringRadius, outerPaint);
+      
+      // Inner ring (bright yellow/white)
+      final innerPaint = Paint()
+        ..color = (i == 0 ? Colors.yellow : Colors.orange).withOpacity(ringOpacity * 0.8)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 8.0 - (i * 2);
+      
+      canvas.drawCircle(center, ringRadius - 5, innerPaint);
+    }
+    
+    // Central bright core
+    final corePaint = Paint()
+      ..color = Colors.white.withOpacity(opacity * 0.9)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 20);
+    
+    canvas.drawCircle(center, 30, corePaint);
+    
+    // Fireball effect
+    final fireballPaint = Paint()
+      ..color = Colors.orange.withOpacity(opacity * 0.7)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 15);
+    
+    canvas.drawCircle(center, radius * 0.1, fireballPaint);
   }
   
   @override
