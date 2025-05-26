@@ -36,7 +36,7 @@ class GameScreen extends StatefulWidget {
 
 class _GameScreenState extends State<GameScreen> {
   bool _gameStarted = false;
-  bool _autoFireMode = true; // Track game mode
+  bool _autoFireMode = true;
 
   void _startGame(bool autoFire) {
     setState(() {
@@ -59,10 +59,9 @@ class _GameScreenState extends State<GameScreen> {
         Colors.white,
       ],
       child: SafeArea(
-        child:
-            _gameStarted
-                ? GameplayScreen(autoFire: _autoFireMode)
-                : StartScreen(onStart: _startGame),
+        child: _gameStarted
+            ? GameplayScreen(autoFire: _autoFireMode)
+            : StartScreen(onStart: _startGame),
       ),
     );
   }
@@ -151,6 +150,7 @@ class _GameplayScreenState extends State<GameplayScreen>
   final List<Enemy> _enemies = [];
   final List<Projectile> _projectiles = [];
   final List<Explosion> _explosions = [];
+  
 
   bool _bossActive = false;
   Boss? _currentBoss;
@@ -170,6 +170,17 @@ class _GameplayScreenState extends State<GameplayScreen>
   Timer? _rapidFireTimer;
   bool _hasRapidFirePowerUp = false;
   bool _hasBigExplosionPowerUp = false;
+  bool _hasMultiShotPowerUp = false;
+  bool _hasSlowMotionPowerUp = false;
+  
+  int _powerUpCounter = 0;
+  List<String> _powerUpSequence = ['RAPID_FIRE', 'MULTI_SHOT', 'TIME_SLOW', 'BIG_EXPLOSION'];
+  
+  bool _slowMotionActive = false;
+  Timer? _slowMotionTimer;
+  
+  bool _multiShotActive = false;
+  Timer? _multiShotTimer;
 
   int _baseFireRate = 400;
   int get _currentFireRate =>
@@ -291,14 +302,12 @@ class _GameplayScreenState extends State<GameplayScreen>
   Future<void> _initializeGame() async {
     try {
       debugPrint('Initializing game resources...');
-
       debugPrint('Attempting to initialize audio...');
       await _gameAudio.initialize();
 
       setState(() {
         _audioInitialized = true;
       });
-
       debugPrint('Audio initialization complete');
     } catch (e) {
       debugPrint('Error during audio initialization: $e');
@@ -332,9 +341,7 @@ class _GameplayScreenState extends State<GameplayScreen>
       _updateGame();
     });
 
-    _enemySpawnTimer = Timer.periodic(const Duration(milliseconds: 1500), (
-      timer,
-    ) {
+    _enemySpawnTimer = Timer.periodic(const Duration(milliseconds: 1500), (timer) {
       _spawnEnemy();
     });
 
@@ -406,15 +413,13 @@ class _GameplayScreenState extends State<GameplayScreen>
       _currentBoss = Boss(
         x: size.width / 2,
         y: size.height * 0.2,
-        width: 100,
-        height: 100,
-        speed: 2.0,
-        health:
-            50 + (_nextBossScore ~/ 500) * 20, // Boss gets stronger each time
+        width: 120,
+        height: 120,
+        speed: 2.5,
+        health: 60 + (_nextBossScore ~/ 500) * 25,
       );
 
       _enemySpawnTimer?.cancel();
-
       _currentBoss!.startAttacking(_fireBossLaser);
     });
 
@@ -444,10 +449,11 @@ class _GameplayScreenState extends State<GameplayScreen>
   }
 
   void _defeatBoss() {
-    for (int i = 0; i < 10; i++) {
+    // Enhanced explosion effects
+    for (int i = 0; i < 15; i++) {
       _addExplosion(
-        _currentBoss!.x + (_random.nextDouble() - 0.5) * 100,
-        _currentBoss!.y + (_random.nextDouble() - 0.5) * 100,
+        _currentBoss!.x + (_random.nextDouble() - 0.5) * 150,
+        _currentBoss!.y + (_random.nextDouble() - 0.5) * 150,
       );
     }
 
@@ -455,12 +461,17 @@ class _GameplayScreenState extends State<GameplayScreen>
       _gameAudio.playExplosionSound();
     }
 
-    int bossPoints = 100 + (_nextBossScore ~/ 500) * 50;
+    // Award 100 points for defeating boss
+    int bossPoints = 100 + (_nextBossScore ~/ 500) * 25;
     score += bossPoints;
 
     setState(() {
-      lives = min(lives + 1, 5); // Cap at 5 lives
-      _powerUpMessage = 'EXTRA LIFE GAINED!';
+      lives = min(lives + 1, 5);
+      
+      // Grant ALL power-ups after boss defeat
+      _grantAllPowerUps();
+      
+      _powerUpMessage = 'BOSS DEFEATED! +$bossPoints POINTS!\nALL POWER-UPS UNLOCKED!';
       _showPowerUpMessage = true;
     });
 
@@ -480,11 +491,60 @@ class _GameplayScreenState extends State<GameplayScreen>
 
     _nextBossScore += 500;
 
-    _enemySpawnTimer = Timer.periodic(const Duration(milliseconds: 1500), (
-      timer,
-    ) {
+    _enemySpawnTimer = Timer.periodic(const Duration(milliseconds: 1500), (timer) {
       _spawnEnemy();
     });
+  }
+
+  void _grantAllPowerUps() {
+    if (widget.autoFire && !_hasRapidFirePowerUp && !_rapidFireActive) {
+      _hasRapidFirePowerUp = true;
+    }
+    
+    if (!_hasMultiShotPowerUp && !_multiShotActive) {
+      _hasMultiShotPowerUp = true;
+    }
+    
+    if (!_hasSlowMotionPowerUp && !_slowMotionActive) {
+      _hasSlowMotionPowerUp = true;
+    }
+    
+    if (!_hasBigExplosionPowerUp) {
+      _hasBigExplosionPowerUp = true;
+    }
+  }
+
+  void _grantNextPowerUp() {
+    String powerUpType = _powerUpSequence[_powerUpCounter % _powerUpSequence.length];
+    
+    switch (powerUpType) {
+      case 'RAPID_FIRE':
+        if (widget.autoFire && !_hasRapidFirePowerUp && !_rapidFireActive) {
+          _hasRapidFirePowerUp = true;
+          _showPowerUpUnlockedMessage('RAPID FIRE');
+        }
+        break;
+      case 'MULTI_SHOT':
+        if (!_hasMultiShotPowerUp && !_multiShotActive) {
+          _hasMultiShotPowerUp = true;
+          _showPowerUpUnlockedMessage('MULTI-SHOT');
+        }
+        break;
+      case 'TIME_SLOW':
+        if (!_hasSlowMotionPowerUp && !_slowMotionActive) {
+          _hasSlowMotionPowerUp = true;
+          _showPowerUpUnlockedMessage('TIME SLOW');
+        }
+        break;
+      case 'BIG_EXPLOSION':
+        if (!_hasBigExplosionPowerUp) {
+          _hasBigExplosionPowerUp = true;
+          _showPowerUpUnlockedMessage('BIG EXPLOSION');
+        }
+        break;
+    }
+    
+    _powerUpCounter++;
   }
 
   void _shakeScreen() {
@@ -517,21 +577,31 @@ class _GameplayScreenState extends State<GameplayScreen>
   void _fireProjectile() {
     if (_gameOver) return;
 
-    final projectile = Projectile(
-      x: _player.x,
-      y: _player.y - 20,
-      width: 5,
-      height: 20,
-      speed: 8,
-    );
+    if (_multiShotActive) {
+      for (int i = -1; i <= 1; i++) {
+        final projectile = Projectile(
+          x: _player.x + (i * 15),
+          y: _player.y - 20,
+          width: 5,
+          height: 20,
+          speed: 8,
+        );
+        _projectiles.add(projectile);
+      }
+    } else {
+      final projectile = Projectile(
+        x: _player.x,
+        y: _player.y - 20,
+        width: 5,
+        height: 20,
+        speed: 8,
+      );
+      _projectiles.add(projectile);
+    }
 
     if (_audioInitialized) {
       _gameAudio.playBlastSound();
     }
-
-    setState(() {
-      _projectiles.add(projectile);
-    });
   }
 
   void _onScreenTap(TapDownDetails details) {
@@ -559,14 +629,9 @@ class _GameplayScreenState extends State<GameplayScreen>
   void _useRapidFirePowerUp() {
     if (!_hasRapidFirePowerUp || _rapidFireActive || _gameOver) return;
 
-    debugPrint('Activating Rapid Fire power-up');
-
     setState(() {
       _rapidFireActive = true;
       _hasRapidFirePowerUp = false;
-    });
-
-    setState(() {
       _powerUpMessage = 'RAPID FIRE ACTIVATED!';
       _showPowerUpMessage = true;
     });
@@ -593,10 +658,54 @@ class _GameplayScreenState extends State<GameplayScreen>
     });
   }
 
+  void _useMultiShotPowerUp() {
+    if (!_hasMultiShotPowerUp || _multiShotActive || _gameOver) return;
+
+    setState(() {
+      _multiShotActive = true;
+      _hasMultiShotPowerUp = false;
+      _powerUpMessage = 'MULTI-SHOT ACTIVATED!';
+      _showPowerUpMessage = true;
+    });
+
+    _powerUpMessageController.reset();
+    _powerUpMessageController.forward();
+
+    _multiShotTimer?.cancel();
+    _multiShotTimer = Timer(const Duration(seconds: 8), () {
+      if (mounted) {
+        setState(() {
+          _multiShotActive = false;
+        });
+      }
+    });
+  }
+
+  void _useSlowMotionPowerUp() {
+    if (!_hasSlowMotionPowerUp || _slowMotionActive || _gameOver) return;
+
+    setState(() {
+      _slowMotionActive = true;
+      _hasSlowMotionPowerUp = false;
+      _powerUpMessage = 'TIME SLOW ACTIVATED!';
+      _showPowerUpMessage = true;
+    });
+
+    _powerUpMessageController.reset();
+    _powerUpMessageController.forward();
+
+    _slowMotionTimer?.cancel();
+    _slowMotionTimer = Timer(const Duration(seconds: 6), () {
+      if (mounted) {
+        setState(() {
+          _slowMotionActive = false;
+        });
+      }
+    });
+  }
+
   void _useBigExplosionPowerUp() {
     if (!_hasBigExplosionPowerUp || _gameOver) return;
-
-    debugPrint('Activating Big Explosion power-up');
 
     setState(() {
       _showNukeEffect = true;
@@ -740,7 +849,8 @@ class _GameplayScreenState extends State<GameplayScreen>
 
       final size = MediaQuery.of(context).size;
       for (int i = _enemies.length - 1; i >= 0; i--) {
-        _enemies[i].y += _enemies[i].speed;
+        double enemySpeed = _slowMotionActive ? _enemies[i].speed * 0.3 : _enemies[i].speed;
+        _enemies[i].y += enemySpeed;
 
         if (_enemies[i].y > size.height + 50) {
           _enemies.removeAt(i);
@@ -775,48 +885,9 @@ class _GameplayScreenState extends State<GameplayScreen>
               score += 10;
               _enemies.removeAt(i);
 
-              if (widget.autoFire &&
-                  !_hasRapidFirePowerUp &&
-                  !_rapidFireActive) {
-                int rapidFireInterval = 100;
-                int firstRapidFire = 50;
-
-                bool shouldUnlockRapidFire = false;
-                if (score >= firstRapidFire) {
-                  int expectedMilestone = firstRapidFire;
-                  while (expectedMilestone <= score) {
-                    if (score >= expectedMilestone &&
-                        (score - 10) < expectedMilestone) {
-                      shouldUnlockRapidFire = true;
-                      break;
-                    }
-                    expectedMilestone += rapidFireInterval;
-                  }
-                }
-
-                if (shouldUnlockRapidFire) {
-                  _hasRapidFirePowerUp = true;
-                  _showPowerUpUnlockedMessage('RAPID FIRE');
-                }
-              }
-
-              if (!_hasBigExplosionPowerUp) {
-                int bigExplosionInterval = 200;
-                bool shouldUnlockBigExplosion = false;
-                int expectedMilestone = bigExplosionInterval;
-                while (expectedMilestone <= score) {
-                  if (score >= expectedMilestone &&
-                      (score - 10) < expectedMilestone) {
-                    shouldUnlockBigExplosion = true;
-                    break;
-                  }
-                  expectedMilestone += bigExplosionInterval;
-                }
-
-                if (shouldUnlockBigExplosion) {
-                  _hasBigExplosionPowerUp = true;
-                  _showPowerUpUnlockedMessage('BIG EXPLOSION');
-                }
+              // New alternating power-up system every 100 points
+              if (score > 0 && score % 100 == 0) {
+                _grantNextPowerUp();
               }
             }
             break;
@@ -863,6 +934,8 @@ class _GameplayScreenState extends State<GameplayScreen>
     _enemySpawnTimer?.cancel();
     _projectileTimer?.cancel();
     _rapidFireTimer?.cancel();
+    _slowMotionTimer?.cancel();
+    _multiShotTimer?.cancel();
 
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
@@ -875,184 +948,183 @@ class _GameplayScreenState extends State<GameplayScreen>
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder:
-          (context) => Dialog(
-            backgroundColor: Colors.transparent,
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.red.withOpacity(0.8),
-                    Colors.black.withOpacity(0.9),
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.red.withOpacity(0.8),
+                Colors.black.withOpacity(0.9),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.red, width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.red.withOpacity(0.5),
+                blurRadius: 20,
+                spreadRadius: 5,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'GAME OVER',
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  shadows: [
+                    Shadow(
+                      color: Colors.red.withOpacity(0.8),
+                      blurRadius: 10,
+                      offset: const Offset(0, 0),
+                    ),
                   ],
                 ),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.red, width: 2),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.red.withOpacity(0.5),
-                    blurRadius: 20,
-                    spreadRadius: 5,
-                  ),
-                ],
+                textAlign: TextAlign.center,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'GAME OVER',
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      shadows: [
-                        Shadow(
-                          color: Colors.red.withOpacity(0.8),
-                          blurRadius: 10,
-                          offset: const Offset(0, 0),
-                        ),
-                      ],
-                    ),
-                    textAlign: TextAlign.center,
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(15),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: Colors.cyanAccent.withOpacity(0.5),
                   ),
-                  const SizedBox(height: 20),
-                  Container(
-                    padding: const EdgeInsets.all(15),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.5),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: Colors.cyanAccent.withOpacity(0.5),
-                      ),
-                    ),
-                    child: Column(
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.stars,
-                              color: Colors.amber,
-                              size: 24,
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              'FINAL SCORE',
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.amber.shade300,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            const Icon(
-                              Icons.stars,
-                              color: Colors.amber,
-                              size: 24,
-                            ),
-                          ],
+                        const Icon(
+                          Icons.stars,
+                          color: Colors.amber,
+                          size: 24,
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(width: 10),
                         Text(
-                          '$score',
-                          style: const TextStyle(
-                            fontSize: 36,
-                            color: Colors.white,
+                          'FINAL SCORE',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.amber.shade300,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
+                        const SizedBox(width: 10),
+                        const Icon(
+                          Icons.stars,
+                          color: Colors.amber,
+                          size: 24,
+                        ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.favorite, color: Colors.red, size: 20),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Lives Lost: ${3 - lives}',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          color: Colors.white70,
-                        ),
+                    const SizedBox(height: 10),
+                    Text(
+                      '$score',
+                      style: const TextStyle(
+                        fontSize: 36,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.favorite, color: Colors.red, size: 20),
+                  const SizedBox(width: 8),
                   Text(
-                    'Mode: ${widget.autoFire ? "AUTO FIRE" : "MANUAL FIRE"}',
-                    style: const TextStyle(fontSize: 14, color: Colors.white60),
-                  ),
-                  const SizedBox(height: 30),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.cyanAccent.withOpacity(0.2),
-                          foregroundColor: Colors.white,
-                          side: const BorderSide(
-                            color: Colors.cyanAccent,
-                            width: 2,
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 12,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(25),
-                          ),
-                        ),
-                        onPressed: () {
-                          Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(
-                              builder: (_) => const GameScreen(),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.refresh, size: 20),
-                        label: const Text(
-                          'PLAY AGAIN',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red.withOpacity(0.2),
-                          foregroundColor: Colors.white,
-                          side: const BorderSide(color: Colors.red, width: 2),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 12,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(25),
-                          ),
-                        ),
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(
-                              builder: (_) => const AnimatedHomePage(),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.home, size: 20),
-                        label: const Text(
-                          'MAIN MENU',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
+                    'Lives Lost: ${3 - lives}',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      color: Colors.white70,
+                    ),
                   ),
                 ],
               ),
-            ),
+              const SizedBox(height: 10),
+              Text(
+                'Mode: ${widget.autoFire ? "AUTO FIRE" : "MANUAL FIRE"}',
+                style: const TextStyle(fontSize: 14, color: Colors.white60),
+              ),
+              const SizedBox(height: 30),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.cyanAccent.withOpacity(0.2),
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(
+                        color: Colors.cyanAccent,
+                        width: 2,
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(
+                          builder: (_) => const GameScreen(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.refresh, size: 20),
+                    label: const Text(
+                      'PLAY AGAIN',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red.withOpacity(0.2),
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Colors.red, width: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(
+                          builder: (_) => const AnimatedHomePage(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.home, size: 20),
+                    label: const Text(
+                      'MAIN MENU',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
+        ),
+      ),
     );
   }
 
@@ -1063,6 +1135,8 @@ class _GameplayScreenState extends State<GameplayScreen>
     _projectileTimer?.cancel();
     _instructionTimer?.cancel();
     _rapidFireTimer?.cancel();
+    _slowMotionTimer?.cancel();
+    _multiShotTimer?.cancel();
     _currentBoss?.dispose();
     _instructionAnimationController.dispose();
     _powerUpAnimationController.dispose();
@@ -1122,25 +1196,21 @@ class _GameplayScreenState extends State<GameplayScreen>
                                 painter: BossPainter(_currentBoss!),
                                 size: Size.infinite,
                               ),
-
                             for (final laser in _bossLasers)
                               CustomPaint(
                                 painter: BossLaserPainter(laser),
                                 size: Size.infinite,
                               ),
-
                             for (final enemy in _enemies)
                               CustomPaint(
                                 painter: EnemyPainter(enemy),
                                 size: Size.infinite,
                               ),
-
                             for (final projectile in _projectiles)
                               CustomPaint(
                                 painter: ProjectilePainter(projectile),
                                 size: Size.infinite,
                               ),
-
                             for (final explosion in _explosions)
                               CustomPaint(
                                 painter: ExplosionPainter(explosion),
@@ -1168,7 +1238,6 @@ class _GameplayScreenState extends State<GameplayScreen>
                             ),
                           ),
                         ),
-
                       if (_nukeShockwaveRadius.value > 0)
                         Positioned.fill(
                           child: CustomPaint(
@@ -1185,7 +1254,6 @@ class _GameplayScreenState extends State<GameplayScreen>
                   );
                 },
               ),
-
             Positioned(
               top: 20,
               left: 20,
@@ -1205,10 +1273,7 @@ class _GameplayScreenState extends State<GameplayScreen>
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
-                      color:
-                          widget.autoFire
-                              ? Colors.cyanAccent
-                              : Colors.orangeAccent,
+                      color: widget.autoFire ? Colors.cyanAccent : Colors.orangeAccent,
                     ),
                   ),
                   if (_rapidFireActive)
@@ -1226,10 +1291,39 @@ class _GameplayScreenState extends State<GameplayScreen>
                         ],
                       ),
                     ),
+                  if (_multiShotActive)
+                    Text(
+                      'MULTI-SHOT!',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.greenAccent,
+                        shadows: [
+                          Shadow(
+                            color: Colors.greenAccent.withOpacity(0.8),
+                            blurRadius: 10,
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (_slowMotionActive)
+                    Text(
+                      'TIME SLOW!',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.purpleAccent,
+                        shadows: [
+                          Shadow(
+                            color: Colors.purpleAccent.withOpacity(0.8),
+                            blurRadius: 10,
+                          ),
+                        ],
+                      ),
+                    ),
                 ],
               ),
             ),
-
             Positioned(
               top: 20,
               right: 20,
@@ -1264,157 +1358,43 @@ class _GameplayScreenState extends State<GameplayScreen>
                 ],
               ),
             ),
-
-            if (widget.autoFire &&
-                (_hasRapidFirePowerUp || _hasBigExplosionPowerUp))
+            // Power-up buttons
+            if (_hasRapidFirePowerUp || 
+                _hasBigExplosionPowerUp || 
+                _hasMultiShotPowerUp || 
+                _hasSlowMotionPowerUp)
               Positioned(
                 top: 100,
                 right: 20,
                 child: Column(
                   children: [
                     if (_hasRapidFirePowerUp)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () {
-                              debugPrint('Rapid Fire button tapped');
-                              _useRapidFirePowerUp();
-                            },
-                            borderRadius: BorderRadius.circular(20),
-                            child: AnimatedBuilder(
-                              animation: _powerUpPulse,
-                              builder: (context, child) {
-                                return Transform.scale(
-                                  scale: _powerUpPulse.value,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: Colors.yellowAccent.withOpacity(
-                                        0.2,
-                                      ),
-                                      borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(
-                                        color: Colors.yellowAccent,
-                                        width: 2,
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.yellowAccent
-                                              .withOpacity(0.3),
-                                          blurRadius: 10,
-                                          spreadRadius: 2,
-                                        ),
-                                      ],
-                                    ),
-                                    child: const Icon(
-                                      Icons.flash_on,
-                                      color: Colors.yellowAccent,
-                                      size: 30,
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        ),
+                      _buildPowerUpButton(
+                        icon: Icons.flash_on,
+                        color: Colors.yellowAccent,
+                        onTap: _useRapidFirePowerUp,
+                      ),
+                    if (_hasMultiShotPowerUp)
+                      _buildPowerUpButton(
+                        icon: Icons.scatter_plot,
+                        color: Colors.greenAccent,
+                        onTap: _useMultiShotPowerUp,
+                      ),
+                    if (_hasSlowMotionPowerUp)
+                      _buildPowerUpButton(
+                        icon: Icons.slow_motion_video,
+                        color: Colors.purpleAccent,
+                        onTap: _useSlowMotionPowerUp,
                       ),
                     if (_hasBigExplosionPowerUp)
-                      Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () {
-                            debugPrint('Big Explosion button tapped');
-                            _useBigExplosionPowerUp();
-                          },
-                          borderRadius: BorderRadius.circular(20),
-                          child: AnimatedBuilder(
-                            animation: _powerUpPulse,
-                            builder: (context, child) {
-                              return Transform.scale(
-                                scale: _powerUpPulse.value,
-                                child: Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: Colors.redAccent.withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: Colors.redAccent,
-                                      width: 2,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.redAccent.withOpacity(
-                                          0.3,
-                                        ),
-                                        blurRadius: 10,
-                                        spreadRadius: 2,
-                                      ),
-                                    ],
-                                  ),
-                                  child: const Icon(
-                                    Icons.auto_awesome,
-                                    color: Colors.redAccent,
-                                    size: 30,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
+                      _buildPowerUpButton(
+                        icon: Icons.auto_awesome,
+                        color: Colors.redAccent,
+                        onTap: _useBigExplosionPowerUp,
                       ),
                   ],
                 ),
               ),
-
-            if (!widget.autoFire && _hasBigExplosionPowerUp)
-              Positioned(
-                top: 100,
-                right: 20,
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () {
-                      debugPrint('Big Explosion button tapped (manual mode)');
-                      _useBigExplosionPowerUp();
-                    },
-                    borderRadius: BorderRadius.circular(20),
-                    child: AnimatedBuilder(
-                      animation: _powerUpPulse,
-                      builder: (context, child) {
-                        return Transform.scale(
-                          scale: _powerUpPulse.value,
-                          child: Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.redAccent.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: Colors.redAccent,
-                                width: 2,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.redAccent.withOpacity(0.3),
-                                  blurRadius: 10,
-                                  spreadRadius: 2,
-                                ),
-                              ],
-                            ),
-                            child: const Icon(
-                              Icons.auto_awesome,
-                              color: Colors.redAccent,
-                              size: 30,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-              ),
-
             if (_showPowerUpMessage)
               Positioned.fill(
                 child: Center(
@@ -1450,8 +1430,9 @@ class _GameplayScreenState extends State<GameplayScreen>
                             child: Text(
                               _powerUpMessage,
                               textAlign: TextAlign.center,
+                              maxLines: 3,
                               style: const TextStyle(
-                                fontSize: 28,
+                                fontSize: 24,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
                                 shadows: [
@@ -1470,7 +1451,6 @@ class _GameplayScreenState extends State<GameplayScreen>
                   ),
                 ),
               ),
-
             if (!widget.autoFire && _showInstruction)
               Positioned.fill(
                 child: Center(
@@ -1511,9 +1491,7 @@ class _GameplayScreenState extends State<GameplayScreen>
                                   color: Colors.orangeAccent,
                                   shadows: [
                                     Shadow(
-                                      color: Colors.orangeAccent.withOpacity(
-                                        0.8,
-                                      ),
+                                      color: Colors.orangeAccent.withOpacity(0.8),
                                       blurRadius: 15,
                                       offset: const Offset(0, 0),
                                     ),
@@ -1552,6 +1530,51 @@ class _GameplayScreenState extends State<GameplayScreen>
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPowerUpButton({
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: AnimatedBuilder(
+            animation: _powerUpPulse,
+            builder: (context, child) {
+              return Transform.scale(
+                scale: _powerUpPulse.value,
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: color, width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withOpacity(0.3),
+                        blurRadius: 10,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    icon,
+                    color: color,
+                    size: 30,
+                  ),
+                ),
+              );
+            },
+          ),
         ),
       ),
     );
@@ -1600,6 +1623,8 @@ class Boss extends Enemy {
   Timer? _movementTimer;
   Timer? _attackTimer;
   bool _movingRight = true;
+  bool _isEnraged = false;
+  double _attackIntensity = 1.0;
 
   Boss({
     required super.x,
@@ -1611,26 +1636,43 @@ class Boss extends Enemy {
   }) : maxHealth = health;
 
   void update(Size screenSize) {
-    // Boss movement pattern
+    if (health / maxHealth < 0.3 && !_isEnraged) {
+      _isEnraged = true;
+      _attackIntensity = 2.0;
+      speed *= 1.5;
+    }
+
+    double movementSpeed = _isEnraged ? speed * 1.5 : speed;
+    
     if (_movingRight) {
-      x += speed;
-      if (x > screenSize.width * 0.9) {
+      x += movementSpeed;
+      if (x > screenSize.width * 0.85) {
         _movingRight = false;
       }
     } else {
-      x -= speed;
-      if (x < screenSize.width * 0.1) {
+      x -= movementSpeed;
+      if (x < screenSize.width * 0.15) {
         _movingRight = true;
       }
     }
 
-    y += sin(DateTime.now().millisecondsSinceEpoch / 300) * 0.5;
+    double bobIntensity = _isEnraged ? 2.0 : 1.0;
+    y += sin(DateTime.now().millisecondsSinceEpoch / 200) * bobIntensity;
   }
 
   void startAttacking(Function(double, double, double) fireLaser) {
     _attackTimer?.cancel();
-    _attackTimer = Timer.periodic(const Duration(milliseconds: 1200), (timer) {
-      fireLaser(x, y + height / 2, 5.0);
+    
+    int attackInterval = _isEnraged ? 600 : 1200;
+    
+    _attackTimer = Timer.periodic(Duration(milliseconds: attackInterval), (timer) {
+      if (_isEnraged) {
+        fireLaser(x - 20, y + height / 2, 6.0);
+        fireLaser(x, y + height / 2, 6.0);
+        fireLaser(x + 20, y + height / 2, 6.0);
+      } else {
+        fireLaser(x, y + height / 2, 5.0);
+      }
     });
   }
 
@@ -1640,6 +1682,7 @@ class Boss extends Enemy {
   }
 
   double get healthPercentage => health / maxHealth;
+  bool get isEnraged => _isEnraged;
 }
 
 class Projectile extends GameObject {
@@ -1681,10 +1724,9 @@ class PlayerPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint =
-        Paint()
-          ..color = Colors.cyanAccent
-          ..style = PaintingStyle.fill;
+    final paint = Paint()
+      ..color = Colors.cyanAccent
+      ..style = PaintingStyle.fill;
 
     final path = Path();
     path.moveTo(player.x, player.y - player.height / 2);
@@ -1694,10 +1736,9 @@ class PlayerPainter extends CustomPainter {
 
     canvas.drawPath(path, paint);
 
-    final glowPaint =
-        Paint()
-          ..color = Colors.cyanAccent.withOpacity(0.5)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+    final glowPaint = Paint()
+      ..color = Colors.cyanAccent.withOpacity(0.5)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
 
     canvas.drawCircle(
       Offset(player.x, player.y + player.height / 3),
@@ -1717,11 +1758,21 @@ class BossPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Draw boss body
-    final bodyPaint =
-        Paint()
-          ..color = Colors.redAccent
-          ..style = PaintingStyle.fill;
+    Color bodyColor = boss.isEnraged ? Colors.deepOrange : Colors.redAccent;
+    
+    final bodyPaint = Paint()
+      ..color = bodyColor
+      ..style = PaintingStyle.fill;
+
+    final glowPaint = Paint()
+      ..color = bodyColor.withOpacity(0.5)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 15);
+
+    canvas.drawCircle(
+      Offset(boss.x, boss.y),
+      boss.width * 0.8,
+      glowPaint,
+    );
 
     final path = Path();
     path.moveTo(boss.x, boss.y - boss.height / 2);
@@ -1732,7 +1783,24 @@ class BossPainter extends CustomPainter {
     path.close();
 
     canvas.drawPath(path, bodyPaint);
-    final eyePaint = Paint()..color = Colors.white;
+
+    final eyeGlowPaint = Paint()
+      ..color = Colors.red.withOpacity(0.8)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+
+    final eyePaint = Paint()..color = boss.isEnraged ? Colors.orange : Colors.white;
+
+    canvas.drawCircle(
+      Offset(boss.x - boss.width / 5, boss.y),
+      boss.width / 8,
+      eyeGlowPaint,
+    );
+    canvas.drawCircle(
+      Offset(boss.x + boss.width / 5, boss.y),
+      boss.width / 8,
+      eyeGlowPaint,
+    );
+
     canvas.drawCircle(
       Offset(boss.x - boss.width / 5, boss.y),
       boss.width / 10,
@@ -1757,12 +1825,12 @@ class BossPainter extends CustomPainter {
     );
 
     final healthBarWidth = boss.width * 1.2;
-    final healthBarHeight = 10.0;
-    final healthBarY = boss.y - boss.height / 2 - 20;
-    final healthBgPaint =
-        Paint()
-          ..color = Colors.grey.withOpacity(0.7)
-          ..style = PaintingStyle.fill;
+    final healthBarHeight = 12.0;
+    final healthBarY = boss.y - boss.height / 2 - 25;
+    
+    final healthBgPaint = Paint()
+      ..color = Colors.grey.withOpacity(0.7)
+      ..style = PaintingStyle.fill;
 
     canvas.drawRect(
       Rect.fromLTWH(
@@ -1773,10 +1841,19 @@ class BossPainter extends CustomPainter {
       ),
       healthBgPaint,
     );
-    final healthPaint =
-        Paint()
-          ..color = Colors.red
-          ..style = PaintingStyle.fill;
+
+    Color healthColor;
+    if (boss.healthPercentage > 0.6) {
+      healthColor = Colors.green;
+    } else if (boss.healthPercentage > 0.3) {
+      healthColor = Colors.orange;
+    } else {
+      healthColor = Colors.red;
+    }
+
+    final healthPaint = Paint()
+      ..color = healthColor
+      ..style = PaintingStyle.fill;
 
     canvas.drawRect(
       Rect.fromLTWH(
@@ -1800,13 +1877,11 @@ class BossLaserPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint =
-        Paint()
-          ..color = Colors.redAccent
-          ..style = PaintingStyle.fill;
+    final paint = Paint()
+      ..color = Colors.redAccent
+      ..style = PaintingStyle.fill;
 
-    canvas.drawRect(
-      Rect.fromLTWH(
+    canvas.drawRect(      Rect.fromLTWH(
         laser.x - laser.width / 2,
         laser.y - laser.height / 2,
         laser.width,
@@ -1815,10 +1890,9 @@ class BossLaserPainter extends CustomPainter {
       paint,
     );
 
-    final glowPaint =
-        Paint()
-          ..color = Colors.redAccent.withOpacity(0.3)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+    final glowPaint = Paint()
+      ..color = Colors.redAccent.withOpacity(0.3)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
 
     canvas.drawRect(
       Rect.fromLTWH(
@@ -1859,35 +1933,35 @@ class NukeShockwavePainter extends CustomPainter {
 
       final ringOpacity = opacity * (1.0 - i * 0.3);
       if (ringOpacity <= 0) continue;
-      final outerPaint =
-          Paint()
-            ..color = (i == 0 ? Colors.orange : Colors.red).withOpacity(
-              ringOpacity * 0.6,
-            )
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 15.0 - (i * 3);
+      
+      final outerPaint = Paint()
+        ..color = (i == 0 ? Colors.orange : Colors.red).withOpacity(
+          ringOpacity * 0.6,
+        )
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 15.0 - (i * 3);
 
       canvas.drawCircle(center, ringRadius, outerPaint);
-      final innerPaint =
-          Paint()
-            ..color = (i == 0 ? Colors.yellow : Colors.orange).withOpacity(
-              ringOpacity * 0.8,
-            )
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 8.0 - (i * 2);
+      
+      final innerPaint = Paint()
+        ..color = (i == 0 ? Colors.yellow : Colors.orange).withOpacity(
+          ringOpacity * 0.8,
+        )
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 8.0 - (i * 2);
 
       canvas.drawCircle(center, ringRadius - 5, innerPaint);
     }
-    final corePaint =
-        Paint()
-          ..color = Colors.white.withOpacity(opacity * 0.9)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 20);
+    
+    final corePaint = Paint()
+      ..color = Colors.white.withOpacity(opacity * 0.9)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 20);
 
     canvas.drawCircle(center, 30, corePaint);
-    final fireballPaint =
-        Paint()
-          ..color = Colors.orange.withOpacity(opacity * 0.7)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 15);
+    
+    final fireballPaint = Paint()
+      ..color = Colors.orange.withOpacity(opacity * 0.7)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 15);
 
     canvas.drawCircle(center, radius * 0.1, fireballPaint);
   }
@@ -1915,10 +1989,9 @@ class EnemyPainter extends CustomPainter {
         enemyColor = Colors.purpleAccent;
     }
 
-    final paint =
-        Paint()
-          ..color = enemyColor
-          ..style = PaintingStyle.fill;
+    final paint = Paint()
+      ..color = enemyColor
+      ..style = PaintingStyle.fill;
 
     final path = Path();
     path.moveTo(enemy.x, enemy.y - enemy.height / 2);
@@ -1931,11 +2004,9 @@ class EnemyPainter extends CustomPainter {
     canvas.drawPath(path, paint);
 
     final eyePaint = Paint()..color = Colors.white;
-
     canvas.drawCircle(Offset(enemy.x, enemy.y), enemy.width / 5, eyePaint);
 
     final pupilPaint = Paint()..color = Colors.black;
-
     canvas.drawCircle(Offset(enemy.x, enemy.y), enemy.width / 10, pupilPaint);
   }
 
@@ -1950,10 +2021,9 @@ class ProjectilePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint =
-        Paint()
-          ..color = Colors.cyanAccent
-          ..style = PaintingStyle.fill;
+    final paint = Paint()
+      ..color = Colors.cyanAccent
+      ..style = PaintingStyle.fill;
 
     canvas.drawRect(
       Rect.fromLTWH(
@@ -1965,10 +2035,9 @@ class ProjectilePainter extends CustomPainter {
       paint,
     );
 
-    final glowPaint =
-        Paint()
-          ..color = Colors.cyanAccent.withOpacity(0.3)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+    final glowPaint = Paint()
+      ..color = Colors.cyanAccent.withOpacity(0.3)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
 
     canvas.drawRect(
       Rect.fromLTWH(
@@ -2005,21 +2074,19 @@ class ExplosionPainter extends CustomPainter {
 
       final opacity = explosion.timeToLive / 20;
 
-      final paint =
-          Paint()
-            ..color = (_random.nextBool()
-                    ? Colors.orangeAccent
-                    : Colors.redAccent)
-                .withOpacity(opacity)
-            ..style = PaintingStyle.fill;
+      final paint = Paint()
+        ..color = (_random.nextBool()
+                ? Colors.orangeAccent
+                : Colors.redAccent)
+            .withOpacity(opacity)
+        ..style = PaintingStyle.fill;
 
       canvas.drawCircle(Offset(x, y), 2 + _random.nextDouble() * 3, paint);
     }
 
-    final corePaint =
-        Paint()
-          ..color = Colors.white.withOpacity(explosion.timeToLive / 30)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+    final corePaint = Paint()
+      ..color = Colors.white.withOpacity(explosion.timeToLive / 30)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
 
     canvas.drawCircle(
       Offset(explosion.x, explosion.y),
@@ -2031,3 +2098,4 @@ class ExplosionPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
+
