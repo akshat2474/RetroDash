@@ -100,15 +100,6 @@ flutter run
 
 ---
 
-## 🎮 Controls
-
-| Mode           | Movement          | Firing             |
-| -------------- | ----------------- | ------------------ |
-| Space Blasters | Automatic         | Automatic          |
-| Manual         | Player-Controlled | Manual (Tap/Press) |
-
----
-
 ## 🤝 Contributing
 
 We welcome contributions of all kinds—bug fixes, new features, performance improvements, and more.
@@ -125,13 +116,6 @@ To get started:
 
 **MIT License**
 See the [LICENSE](LICENSE) file for full details.
-
----
-
-## 🙌 Credits
-
-* Developed with ❤️ using [Flutter](https://flutter.dev)
-* All icons, sounds, and art are located in the `assets/` folder
 
 ---
 
