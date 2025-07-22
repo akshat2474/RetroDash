@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -11,6 +13,7 @@ class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
 
   @override
+  // ignore: library_private_types_in_public_api
   _ProfilePageState createState() => _ProfilePageState();
 }
 
@@ -121,6 +124,7 @@ class _ProfilePageState extends State<ProfilePage>
         });
       }
     } catch (e) {
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error picking image: $e'),
@@ -139,7 +143,6 @@ class _ProfilePageState extends State<ProfilePage>
       final fileName = 'profile_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final savedImagePath = path.join(appDir.path, fileName);
 
-      final File newImage = await _profileImage!.copy(savedImagePath);
 
       if (_savedImagePath != null && _savedImagePath != savedImagePath) {
         final oldFile = File(_savedImagePath!);

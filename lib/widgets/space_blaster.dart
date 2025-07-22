@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:math';
@@ -174,7 +176,7 @@ class _GameplayScreenState extends State<GameplayScreen>
   bool _hasSlowMotionPowerUp = false;
   
   int _powerUpCounter = 0;
-  List<String> _powerUpSequence = ['RAPID_FIRE', 'MULTI_SHOT', 'TIME_SLOW', 'BIG_EXPLOSION'];
+  final List<String> _powerUpSequence = ['RAPID_FIRE', 'MULTI_SHOT', 'TIME_SLOW', 'BIG_EXPLOSION'];
   
   bool _slowMotionActive = false;
   Timer? _slowMotionTimer;
@@ -182,7 +184,7 @@ class _GameplayScreenState extends State<GameplayScreen>
   bool _multiShotActive = false;
   Timer? _multiShotTimer;
 
-  int _baseFireRate = 400;
+  final int _baseFireRate = 400;
   int get _currentFireRate =>
       _rapidFireActive ? (_baseFireRate ~/ 2) : _baseFireRate;
 
@@ -1624,7 +1626,6 @@ class Boss extends Enemy {
   Timer? _attackTimer;
   bool _movingRight = true;
   bool _isEnraged = false;
-  double _attackIntensity = 1.0;
 
   Boss({
     required super.x,
@@ -1638,7 +1639,6 @@ class Boss extends Enemy {
   void update(Size screenSize) {
     if (health / maxHealth < 0.3 && !_isEnraged) {
       _isEnraged = true;
-      _attackIntensity = 2.0;
       speed *= 1.5;
     }
 

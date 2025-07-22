@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'animated_background.dart'; // Import the AnimatedBackground widget
 
@@ -14,6 +16,8 @@ class PersonalBestPage extends StatelessWidget {
     ScoreEntry(name: "Adamya", score: 4320, date: "2025-04-30"),
     ScoreEntry(name: "Abhoydya", score: 3760, date: "2025-04-22"),
   ];
+
+  PersonalBestPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -183,7 +187,7 @@ class ScoreEntryWidget extends StatelessWidget {
   final ScoreEntry entry;
   final bool isEven;
 
-  const ScoreEntryWidget({
+  const ScoreEntryWidget({super.key, 
     required this.rank,
     required this.entry,
     required this.isEven,
