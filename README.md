@@ -1,10 +1,10 @@
-# 🚀 RetroDash
+# RetroDash
 
 **RetroDash** is a fast-paced, arcade-style shooter built with Flutter. Pilot your ship through waves of falling enemies, collect powerful upgrades, and unleash devastating nukes. Climb the leaderboard, challenge intense bosses, and survive as long as you can in this thrilling retro-inspired experience.
 
 ---
 
-## 🎮 Game Modes
+## Game Modes
 
 ###  Space Blasters Mode
 
@@ -20,7 +20,7 @@
 
 ---
 
-## 📸 Screenshots
+## Screenshots
 
 Get a glimpse of the action before you play!
 
@@ -29,11 +29,9 @@ Get a glimpse of the action before you play!
   <img src="assets/images/boss_fight.jpg" alt="Gameplay Screenshot 2" width="300"/>
 </p>
 
-> 📷 Have cool gameplay moments? Share your screenshots in a GitHub issue or a pull request to feature them here!
+---
 
----.
-
-## ✨ Features
+## Features
 
 *  **Dynamic Enemy Waves**
 *  **Nuke Power-Ups**
@@ -44,7 +42,7 @@ Get a glimpse of the action before you play!
 
 ---
 
-## 🗂 File Structure
+## File Structure
 
 ```
 RETRO_DASH/
@@ -100,7 +98,7 @@ flutter run
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions of all kinds—bug fixes, new features, performance improvements, and more.
 To get started:
@@ -112,13 +110,7 @@ To get started:
 
 ---
 
-## 📄 License
+## License
 
 **MIT License**
 See the [LICENSE](LICENSE) file for full details.
-
----
-
-**Ready to blast off?**
-Play **RetroDash** and relive the golden age of arcade shooters!
-🛸💥👾
